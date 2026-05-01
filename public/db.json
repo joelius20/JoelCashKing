@@ -1,0 +1,9 @@
+{
+  "users": {},
+  "withdrawals": [],
+  "settings": {
+    "minWithdrawalCoins": 1000,
+    "coinRate": 1000,
+    "currency": "EUR"
+  }
+}
