@@ -1,7 +1,7 @@
 {
   "name": "joelcashking-v2",
-  "version": "0.16.0",
-  "description": "JoelCashKing V16: 5 anuncios obligatorios por recompensa.",
+  "version": "0.17.0",
+  "description": "JoelCashKing V17: validación backend de 5 anuncios por recompensa.",
   "main": "server.js",
   "scripts": {
     "dev": "node server.js",

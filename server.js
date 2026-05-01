@@ -31,6 +31,8 @@ const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "";
 const OFFERWALL_URL = process.env.OFFERWALL_URL || "";
 const OFFERWALL_NAME = process.env.OFFERWALL_NAME || "Offerway";
 
+const REQUIRED_ADS_PER_REWARD = Number(process.env.REQUIRED_ADS_PER_REWARD || 5);
+
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 const DB_FILE = process.env.DB_FILE || path.join(DATA_DIR, "db.json");
 
@@ -101,6 +103,7 @@ app.get("/health", (req, res) => {
     app: APP_NAME,
     env: NODE_ENV,
     publicUrl: PUBLIC_URL || null,
+    requiredAdsPerReward: REQUIRED_ADS_PER_REWARD,
     time: new Date().toISOString()
   });
 });
@@ -211,7 +214,12 @@ function ensureDaily(user) {
     quiz: 0,
     wordSearch: 0,
     puzzleCompletedAt: 0,
-    puzzleUnityAdReady: false
+    puzzleUnityAdReady: false,
+    rewardedAdProgress: {
+      coins: 0,
+      roulette: 0,
+      puzzle: 0
+    }
   };
   user.daily[key].ads = user.daily[key].ads || 0;
   user.daily[key].spins = user.daily[key].spins || 0;
@@ -221,7 +229,56 @@ function ensureDaily(user) {
   user.daily[key].wordSearch = user.daily[key].wordSearch || 0;
   user.daily[key].puzzleCompletedAt = user.daily[key].puzzleCompletedAt || 0;
   user.daily[key].puzzleUnityAdReady = Boolean(user.daily[key].puzzleUnityAdReady || false);
+  user.daily[key].rewardedAdProgress = user.daily[key].rewardedAdProgress || {};
+  user.daily[key].rewardedAdProgress.coins = user.daily[key].rewardedAdProgress.coins || 0;
+  user.daily[key].rewardedAdProgress.roulette = user.daily[key].rewardedAdProgress.roulette || 0;
+  user.daily[key].rewardedAdProgress.puzzle = user.daily[key].rewardedAdProgress.puzzle || 0;
   return user.daily[key];
+}
+
+function normalizeRewardPurpose(purpose) {
+  const clean = String(purpose || "").trim().toLowerCase();
+  if (["coins", "roulette", "puzzle"].includes(clean)) return clean;
+  return "";
+}
+
+function rewardedProgressPayload(daily, purpose) {
+  const progress = daily.rewardedAdProgress[purpose] || 0;
+
+  return {
+    purpose,
+    progress,
+    required: REQUIRED_ADS_PER_REWARD,
+    remaining: Math.max(0, REQUIRED_ADS_PER_REWARD - progress),
+    ready: progress >= REQUIRED_ADS_PER_REWARD
+  };
+}
+
+function consumeRewardedAds(daily, purpose) {
+  const progress = daily.rewardedAdProgress[purpose] || 0;
+
+  if (progress < REQUIRED_ADS_PER_REWARD) {
+    return false;
+  }
+
+  daily.rewardedAdProgress[purpose] = Math.max(0, progress - REQUIRED_ADS_PER_REWARD);
+  return true;
+}
+
+function incrementRewardedAdStats(user, purpose) {
+  user.stats = user.stats || {};
+
+  if (purpose === "coins") {
+    user.stats.adsWatched = (user.stats.adsWatched || 0) + 1;
+  }
+
+  if (purpose === "roulette") {
+    user.stats.unityAdsWatched = (user.stats.unityAdsWatched || 0) + 1;
+  }
+
+  if (purpose === "puzzle") {
+    user.stats.puzzleUnityAdsWatched = (user.stats.puzzleUnityAdsWatched || 0) + 1;
+  }
 }
 
 app.post("/api/register", authLimiter, (req, res) => {
@@ -342,15 +399,41 @@ app.get("/api/my-withdrawals", authUser, (req, res) => {
   res.json({ withdrawals });
 });
 
+app.post("/api/rewarded-ad/progress", authUser, (req, res) => {
+  const purpose = normalizeRewardPurpose(req.body.purpose);
+
+  if (!purpose) {
+    return res.status(400).json({ error: "Tipo de anuncio no válido." });
+  }
+
+  const daily = ensureDaily(req.user);
+  daily.rewardedAdProgress[purpose] = (daily.rewardedAdProgress[purpose] || 0) + 1;
+
+  incrementRewardedAdStats(req.user, purpose);
+
+  saveDb(req.db);
+
+  res.json({
+    ok: true,
+    ...rewardedProgressPayload(daily, purpose)
+  });
+});
+
 app.post("/api/reward/ad", authUser, (req, res) => {
   const daily = ensureDaily(req.user);
 
   if (daily.ads >= 20) {
-    return res.status(429).json({ error: "Límite diario de anuncios alcanzado. Vuelve mañana." });
+    return res.status(429).json({ error: "Límite diario de recompensas por anuncios alcanzado. Vuelve mañana." });
+  }
+
+  if (!consumeRewardedAds(daily, "coins")) {
+    return res.status(429).json({
+      error: `Necesitas ver ${REQUIRED_ADS_PER_REWARD} anuncios antes de recibir esta recompensa.`,
+      ...rewardedProgressPayload(daily, "coins")
+    });
   }
 
   daily.ads += 1;
-  req.user.stats.adsWatched += 1;
   req.user.stats.coinsEarned = (req.user.stats.coinsEarned || 0) + 10;
   req.user.coins += 10;
   saveDb(req.db);
@@ -406,12 +489,18 @@ app.post("/api/roulette/unity-ad", authUser, (req, res) => {
 
   if (daily.rouletteUnityAds >= 10) {
     return res.status(429).json({
-      error: "Has alcanzado el límite de anuncios extra para la ruleta por hoy."
+      error: "Has alcanzado el límite de avances de anuncio extra para la ruleta por hoy."
+    });
+  }
+
+  if (!consumeRewardedAds(daily, "roulette")) {
+    return res.status(429).json({
+      error: `Necesitas ver ${REQUIRED_ADS_PER_REWARD} anuncios antes de sumar progreso para la ruleta.`,
+      ...rewardedProgressPayload(daily, "roulette")
     });
   }
 
   daily.rouletteUnityAds += 1;
-  req.user.stats.unityAdsWatched = (req.user.stats.unityAdsWatched || 0) + 1;
 
   saveDb(req.db);
 
@@ -758,8 +847,14 @@ app.get("/api/surveys/offerwall", authUser, (req, res) => {
 app.post("/api/puzzle/unity-ad", authUser, (req, res) => {
   const daily = ensureDaily(req.user);
 
+  if (!consumeRewardedAds(daily, "puzzle")) {
+    return res.status(429).json({
+      error: `Necesitas ver ${REQUIRED_ADS_PER_REWARD} anuncios antes de desbloquear el siguiente puzzle.`,
+      ...rewardedProgressPayload(daily, "puzzle")
+    });
+  }
+
   daily.puzzleUnityAdReady = true;
-  req.user.stats.puzzleUnityAdsWatched = (req.user.stats.puzzleUnityAdsWatched || 0) + 1;
 
   saveDb(req.db);
 

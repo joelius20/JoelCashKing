@@ -224,3 +224,21 @@ Flujo:
 4. Al completar los 5, se aplica la recompensa.
 
 Esto mejora la rentabilidad, pero puede cansar al usuario. Conviene probarlo en producción y ajustar si baja mucho la retención.
+
+
+## Backend antifraude anuncios V17
+
+Antes:
+- El frontend contaba 5 anuncios y luego pedía la recompensa.
+
+Ahora:
+- Cada anuncio completado se registra en el backend.
+- El backend guarda progreso por tipo:
+  - coins
+  - roulette
+  - puzzle
+- La recompensa solo se concede si el backend tiene 5 registros acumulados.
+
+Limitación:
+- El proveedor de Vignette no confirma por callback real que el anuncio se haya visto.
+- Esto evita llamadas directas simples a la recompensa, pero no sustituye un postback oficial.

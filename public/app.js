@@ -55,7 +55,9 @@ function injectVignetteAdScript() {
   }, 60000);
 }
 
-async function showRewardedVignetteAd(message = "Se abrirán anuncios. La recompensa se aplica al completar todos.") {
+async function showRewardedVignetteAd(message = "Se abrirán anuncios. La recompensa se aplica al completar todos.", purpose = "coins") {
+  let lastProgress = null;
+
   for (let adNumber = 1; adNumber <= REQUIRED_ADS_PER_REWARD; adNumber++) {
     showRewardedOverlay(message, adNumber, REQUIRED_ADS_PER_REWARD);
     injectVignetteAdScript();
@@ -71,14 +73,26 @@ async function showRewardedVignetteAd(message = "Se abrirán anuncios. La recomp
       await sleep(1000);
     }
 
+    lastProgress = await api("/api/rewarded-ad/progress", {
+      method: "POST",
+      body: JSON.stringify({ purpose })
+    });
+
     if (adNumber < REQUIRED_ADS_PER_REWARD) {
       const textNext = document.getElementById("rewardedAdText");
-      if (textNext) textNext.textContent = "Preparando el siguiente anuncio...";
+      if (textNext) {
+        textNext.textContent = `Anuncio registrado en servidor. Progreso: ${lastProgress.progress}/${lastProgress.required}. Preparando el siguiente anuncio...`;
+      }
       await sleep(900);
     }
   }
 
   removeRewardedOverlay();
+
+  if (!lastProgress || !lastProgress.ready) {
+    throw new Error("No se pudo validar el mínimo de anuncios en el servidor.");
+  }
+
   return true;
 }
 
@@ -526,7 +540,7 @@ $("watchAdBtn").addEventListener("click", async () => {
   try {
     $("watchAdBtn").disabled = true;
     $("adMsg").textContent = "Cargando 5 anuncios recompensados...";
-    await showRewardedVignetteAd("Mira 5 anuncios para recibir tus coins.");
+    await showRewardedVignetteAd("Mira 5 anuncios para recibir tus coins.", "coins");
 
     const data = await api("/api/reward/ad", { method: "POST" });
     $("coinBalance").textContent = data.coins;
@@ -677,10 +691,10 @@ $("unityAdBtn").addEventListener("click", async () => {
   try {
     $("unityAdBtn").disabled = true;
     $("unityAdMsg").textContent = "Cargando 5 anuncios recompensados...";
-    await showRewardedVignetteAd("Mira 5 anuncios para avanzar hacia una tirada extra.");
+    await showRewardedVignetteAd("Mira 5 anuncios para avanzar hacia una tirada extra.", "roulette");
 
     const data = await api("/api/roulette/unity-ad", { method: "POST" });
-    $("unityAdMsg").textContent = `Anuncio visto. Progreso para tirada extra: ${data.rouletteUnityAds}/2.`;
+    $("unityAdMsg").textContent = `Bloque de 5 anuncios validado. Progreso para tirada extra: ${data.rouletteUnityAds}/2.`;
 
     if (data.rouletteUnityAds >= 2) {
       $("unityAdMsg").textContent = "Ya tienes 2 anuncios vistos. Puedes girar una tirada extra.";
@@ -1110,14 +1124,14 @@ $("puzzleUnityAdBtn")?.addEventListener("click", async () => {
   try {
     $("puzzleUnityAdBtn").disabled = true;
     $("puzzleMsg").textContent = "Cargando 5 anuncios recompensados...";
-    await showRewardedVignetteAd("Mira 5 anuncios para desbloquear el siguiente puzzle.");
+    await showRewardedVignetteAd("Mira 5 anuncios para desbloquear el siguiente puzzle.", "puzzle");
 
     await api("/api/puzzle/unity-ad", { method: "POST" });
 
     puzzleNeedsUnityAd = false;
     localStorage.setItem("jck_puzzle_needs_unity_ad", "false");
 
-    $("puzzleMsg").textContent = "Anuncio visto. Cuando pasen los 2 minutos, podrás completar el siguiente puzzle.";
+    $("puzzleMsg").textContent = "Bloque de 5 anuncios validado. Cuando pasen los 2 minutos, podrás completar el siguiente puzzle.";
     updatePuzzleCooldownText();
     await refreshMe();
   } catch (err) {
