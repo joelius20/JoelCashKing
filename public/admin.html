@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Admin - JoelCashKing</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="theme-color" content="#101827">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="user-header">
+      <div>
+        <span class="muted">Dashboard admin</span>
+        <h1>JoelCashKing 👑</h1>
+      </div>
+      <a href="/" class="top-link">Volver</a>
+    </header>
+
+    <section class="card">
+      <h2>Acceso administrador</h2>
+      <label>Clave admin</label>
+      <input id="adminKey" type="password" placeholder="Por defecto: joel-dev">
+      <button id="saveAdminKey" class="primary full">Entrar al dashboard</button>
+      <p class="muted small">Para producción cambia la clave con ADMIN_KEY.</p>
+      <p id="adminMsg" class="status"></p>
+    </section>
+
+    <section id="adminPanel" class="hidden">
+      <section class="dashboard-card">
+        <div>
+          <span class="muted">Usuarios</span>
+          <strong id="adminUsers">0</strong>
+        </div>
+        <div>
+          <span class="muted">Solicitudes</span>
+          <strong id="adminWithdrawals">0</strong>
+        </div>
+        <div>
+          <span class="muted">Pendientes</span>
+          <strong id="adminPending">0</strong>
+        </div>
+        <div>
+          <span class="muted">Pagadas</span>
+          <strong id="adminPaid">0</strong>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="admin-head">
+          <h2>Solicitudes de PayPal</h2>
+          <button id="refreshAdmin" class="small-button">Actualizar</button>
+        </div>
+        <div id="withdrawalsAdminList" class="withdrawal-list"></div>
+      </section>
+    </section>
+  </main>
+
+  <script src="/admin.js"></script>
+</body>
+</html>
