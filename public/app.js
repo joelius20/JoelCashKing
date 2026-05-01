@@ -4,28 +4,177 @@ let currentUserData = null;
 
 const $ = (id) => document.getElementById(id);
 
-const quizQuestions = [
+const REWARDED_VIGNETTE_ZONE = "10950905";
+const REWARDED_VIGNETTE_SRC = "https://n6wxm.com/vignette.min.js";
+const REWARDED_AD_SECONDS = 15;
+const REQUIRED_ADS_PER_REWARD = 5;
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function removeRewardedOverlay() {
+  const old = document.getElementById("rewardedAdOverlay");
+  if (old) old.remove();
+}
+
+function showRewardedOverlay(message = "Cargando anuncio recompensado...", currentAd = 1, totalAds = REQUIRED_ADS_PER_REWARD) {
+  removeRewardedOverlay();
+
+  const overlay = document.createElement("div");
+  overlay.id = "rewardedAdOverlay";
+  overlay.className = "rewarded-ad-overlay";
+  overlay.innerHTML = `
+    <div class="rewarded-ad-card">
+      <div class="rewarded-ad-icon">📺</div>
+      <h2>Anuncio recompensado</h2>
+      <p id="rewardedAdText">${message}</p>
+      <div class="rewarded-ad-progress">
+        <span>Anuncio ${currentAd} de ${totalAds}</span>
+        <div><i style="width:${Math.round((currentAd / totalAds) * 100)}%"></i></div>
+      </div>
+      <strong id="rewardedAdCountdown">${REWARDED_AD_SECONDS}s</strong>
+      <small>No cierres esta pantalla hasta que termine el contador.</small>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+}
+
+function injectVignetteAdScript() {
+  const script = document.createElement("script");
+  script.dataset.zone = REWARDED_VIGNETTE_ZONE;
+  script.src = `${REWARDED_VIGNETTE_SRC}?t=${Date.now()}`;
+  script.async = true;
+  document.body.appendChild(script);
+
+  setTimeout(() => {
+    try {
+      script.remove();
+    } catch {}
+  }, 60000);
+}
+
+async function showRewardedVignetteAd(message = "Se abrirán anuncios. La recompensa se aplica al completar todos.") {
+  for (let adNumber = 1; adNumber <= REQUIRED_ADS_PER_REWARD; adNumber++) {
+    showRewardedOverlay(message, adNumber, REQUIRED_ADS_PER_REWARD);
+    injectVignetteAdScript();
+
+    const text = document.getElementById("rewardedAdText");
+    if (text) {
+      text.textContent = `${message} Debes completar ${REQUIRED_ADS_PER_REWARD} anuncios para recibir la recompensa.`;
+    }
+
+    for (let i = REWARDED_AD_SECONDS; i >= 0; i--) {
+      const counter = document.getElementById("rewardedAdCountdown");
+      if (counter) counter.textContent = `${i}s`;
+      await sleep(1000);
+    }
+
+    if (adNumber < REQUIRED_ADS_PER_REWARD) {
+      const textNext = document.getElementById("rewardedAdText");
+      if (textNext) textNext.textContent = "Preparando el siguiente anuncio...";
+      await sleep(900);
+    }
+  }
+
+  removeRewardedOverlay();
+  return true;
+}
+
+
+const quizPacks = [
   {
-    q: "¿Qué minijuego consiste en encontrar palabras ocultas?",
-    options: ["Sopa de letras", "Carreras", "Ajedrez"],
-    answer: 0
+    title: "Quiz 1: JoelCashKing básico",
+    questions: [
+      {
+        q: "¿Qué minijuego consiste en encontrar palabras ocultas?",
+        options: ["Sopa de letras", "Carreras", "Ajedrez"],
+        answer: 0
+      },
+      {
+        q: "¿Qué se gana en JoelCashKing?",
+        options: ["Monedas internas", "Bitcoin directo", "Entradas de casino"],
+        answer: 0
+      },
+      {
+        q: "¿Qué método de retirada tiene la tienda de este MVP?",
+        options: ["PayPal", "Tarjeta regalo aleatoria", "Criptomonedas sin revisar"],
+        answer: 0
+      },
+      {
+        q: "¿Qué pasa con una retirada antes de pagarla?",
+        options: ["Queda pendiente de revisión", "Se paga sin revisar", "Se borra la cuenta"],
+        answer: 0
+      }
+    ]
   },
   {
-    q: "¿Qué se gana en JoelCashKing?",
-    options: ["Monedas internas", "Bitcoin directo", "Entradas de casino"],
-    answer: 0
+    title: "Quiz 2: Minijuegos y recompensas",
+    questions: [
+      {
+        q: "¿Cuántas tiradas gratis tiene la ruleta al día?",
+        options: ["1 tirada", "5 tiradas", "Ilimitadas"],
+        answer: 0
+      },
+      {
+        q: "¿Qué se necesita para una tirada extra de ruleta?",
+        options: ["Ver 2 anuncios recompensados", "Pagar con tarjeta", "Borrar la cuenta"],
+        answer: 0
+      },
+      {
+        q: "¿Qué recompensa tiene la Sopa 3?",
+        options: ["10 coins", "30 coins", "100 coins"],
+        answer: 0
+      },
+      {
+        q: "¿Dónde se ven los retiros del usuario?",
+        options: ["En el historial de retiros", "Solo en la consola", "No se pueden ver"],
+        answer: 0
+      }
+    ]
   },
   {
-    q: "¿Qué método de retirada tiene la tienda de este MVP?",
-    options: ["PayPal", "Tarjeta regalo aleatoria", "Criptomonedas sin revisar"],
-    answer: 0
-  },
-  {
-    q: "¿Qué pasa con una retirada antes de pagarla?",
-    options: ["Queda pendiente de revisión", "Se paga sin revisar", "Se borra la cuenta"],
-    answer: 0
+    title: "Quiz 3: Tienda de retiros",
+    questions: [
+      {
+        q: "¿Cuál de estos métodos está disponible en la tienda?",
+        options: ["Bizum", "Cheque secreto", "Pago automático sin revisión"],
+        answer: 0
+      },
+      {
+        q: "¿Qué estado aparece antes de revisar una solicitud?",
+        options: ["Pendiente", "Completado", "Invisible"],
+        answer: 0
+      },
+      {
+        q: "¿Qué tarjeta regalo está disponible?",
+        options: ["Steam", "Gasolina infinita", "Billete de avión automático"],
+        answer: 0
+      },
+      {
+        q: "¿Quién marca una solicitud como completada?",
+        options: ["El admin", "El navegador solo", "El usuario sin revisión"],
+        answer: 0
+      }
+    ]
   }
 ];
+
+let currentQuizPackIndex = Number(localStorage.getItem("jck_current_quiz_pack") || 0);
+if (!Number.isFinite(currentQuizPackIndex) || currentQuizPackIndex < 0 || currentQuizPackIndex >= quizPacks.length) {
+  currentQuizPackIndex = 0;
+}
+
+function getCurrentQuizPack() {
+  return quizPacks[currentQuizPackIndex] || quizPacks[0];
+}
+
+function goToNextQuizPack() {
+  currentQuizPackIndex = (currentQuizPackIndex + 1) % quizPacks.length;
+  localStorage.setItem("jck_current_quiz_pack", String(currentQuizPackIndex));
+  renderQuiz();
+}
 
 const wordPuzzles = {
   basic: {
@@ -64,6 +213,22 @@ const wordPuzzles = {
       ["F","R","A","U","D","E","I","J","K","L","M","N"],
       ["A","D","M","I","N","O","P","Q","R","S","T","U"],
       ["V","W","X","Y","Z","A","B","C","D","E","F","G"]
+    ]
+  },
+  easy3: {
+    title: "Sopa 3 fácil",
+    intro: "Tercera sopa: más sencilla y rápida. Recompensa especial: 10 coins.",
+    reward: 10,
+    words: ["JOEL", "COINS", "APP", "RETO", "JUEGO", "KING"],
+    grid: [
+      ["J","O","E","L","A","B","C","D"],
+      ["C","O","I","N","S","E","F","G"],
+      ["A","P","P","H","I","J","K","L"],
+      ["R","E","T","O","M","N","O","P"],
+      ["J","U","E","G","O","Q","R","S"],
+      ["K","I","N","G","T","U","V","W"],
+      ["X","Y","Z","A","B","C","D","E"],
+      ["F","G","H","I","J","K","L","M"]
     ]
   }
 };
@@ -114,6 +279,7 @@ function renderPrivate(user) {
   $("statWordSearch").textContent = user.stats.wordSearchSolved || 0;
   $("statSpins").textContent = user.stats.spins || 0;
   $("statAds").textContent = totalAds;
+  if ($("statPuzzles")) $("statPuzzles").textContent = user.stats.puzzlesCompleted || 0;
 
   if ($("profileUsername")) $("profileUsername").textContent = user.username;
   if ($("profileEmail")) $("profileEmail").textContent = user.email;
@@ -158,10 +324,15 @@ function showScreen(screenId) {
   document.querySelector(`[data-screen="${screenId}"]`).classList.add("active");
 
   if (screenId === "shop" || screenId === "profile") loadMyWithdrawals();
+  if (screenId === "puzzle") renderPuzzle();
+  if (screenId === "surveys") resetOfferwallMessage();
 }
 
 function renderQuiz() {
-  $("quizContainer").innerHTML = quizQuestions.map((item, index) => `
+  const pack = getCurrentQuizPack();
+  if ($("quizTitle")) $("quizTitle").textContent = pack.title;
+
+  $("quizContainer").innerHTML = pack.questions.map((item, index) => `
     <div class="question">
       <strong>${index + 1}. ${item.q}</strong>
       ${item.options.map((opt, optIndex) => `
@@ -183,6 +354,12 @@ function renderWordGrid() {
 
   $("wordPuzzle1Btn")?.classList.toggle("active", currentPuzzleId === "basic");
   $("wordPuzzle2Btn")?.classList.toggle("active", currentPuzzleId === "advanced");
+  $("wordPuzzle3Btn")?.classList.toggle("active", currentPuzzleId === "easy3");
+
+  if ($("finishWordSearchBtn")) {
+    const reward = puzzle.reward || (currentPuzzleId === "easy3" ? 10 : 30);
+    $("finishWordSearchBtn").textContent = `Completar ${puzzle.title} +${reward} 🪙`;
+  }
 
   grid.innerHTML = "";
 
@@ -348,8 +525,8 @@ $("watchAdBtn").addEventListener("click", async () => {
 
   try {
     $("watchAdBtn").disabled = true;
-    $("adMsg").textContent = "Simulando anuncio recompensado...";
-    await new Promise(resolve => setTimeout(resolve, 1600));
+    $("adMsg").textContent = "Cargando 5 anuncios recompensados...";
+    await showRewardedVignetteAd("Mira 5 anuncios para recibir tus coins.");
 
     const data = await api("/api/reward/ad", { method: "POST" });
     $("coinBalance").textContent = data.coins;
@@ -365,8 +542,10 @@ $("watchAdBtn").addEventListener("click", async () => {
 $("submitQuizBtn").addEventListener("click", async () => {
   if (!requireLogin()) return;
 
+  const pack = getCurrentQuizPack();
   let correct = 0;
-  quizQuestions.forEach((item, index) => {
+
+  pack.questions.forEach((item, index) => {
     const checked = document.querySelector(`input[name="q${index}"]:checked`);
     if (checked && Number(checked.value) === item.answer) correct++;
   });
@@ -374,14 +553,29 @@ $("submitQuizBtn").addEventListener("click", async () => {
   try {
     const data = await api("/api/reward/quiz", {
       method: "POST",
-      body: JSON.stringify({ correct, total: quizQuestions.length })
+      body: JSON.stringify({
+        quizPack: pack.title,
+        correct,
+        total: pack.questions.length
+      })
     });
 
     $("coinBalance").textContent = data.coins;
-    alert(`Correctas: ${correct}/${quizQuestions.length}. Ganaste ${data.added} monedas.`);
+
+    const completedTitle = pack.title;
+    goToNextQuizPack();
+    const nextTitle = getCurrentQuizPack().title;
+
+    if ($("quizMsg")) {
+      $("quizMsg").textContent = `${completedTitle} completado: ${correct}/${pack.questions.length} correctas. Ganaste ${data.added} monedas. Se ha cargado ${nextTitle}.`;
+    } else {
+      alert(`Correctas: ${correct}/${pack.questions.length}. Ganaste ${data.added} monedas.`);
+    }
+
     await refreshMe();
   } catch (err) {
-    alert(err.message);
+    if ($("quizMsg")) $("quizMsg").textContent = err.message;
+    else alert(err.message);
   }
 });
 
@@ -394,6 +588,13 @@ $("wordPuzzle1Btn").addEventListener("click", () => {
 
 $("wordPuzzle2Btn").addEventListener("click", () => {
   currentPuzzleId = "advanced";
+  localStorage.setItem("jck_current_puzzle", currentPuzzleId);
+  renderWordGrid();
+  $("wordSearchMsg").textContent = "";
+});
+
+$("wordPuzzle3Btn").addEventListener("click", () => {
+  currentPuzzleId = "easy3";
   localStorage.setItem("jck_current_puzzle", currentPuzzleId);
   renderWordGrid();
   $("wordSearchMsg").textContent = "";
@@ -416,6 +617,11 @@ $("finishWordSearchBtn").addEventListener("click", async () => {
       localStorage.setItem("jck_current_puzzle", currentPuzzleId);
       renderWordGrid();
       $("wordSearchMsg").textContent += " Se ha cargado la segunda sopa, más difícil.";
+    } else if (currentPuzzleId === "advanced") {
+      currentPuzzleId = "easy3";
+      localStorage.setItem("jck_current_puzzle", currentPuzzleId);
+      renderWordGrid();
+      $("wordSearchMsg").textContent += " Se ha cargado la tercera sopa, más fácil y de 10 coins.";
     }
 
     await refreshMe();
@@ -430,7 +636,7 @@ function updateUnityAdUi(data = {}) {
 
   if (freeLeft <= 0) {
     $("unityAdBtn").classList.remove("hidden");
-    $("unityAdMsg").textContent = `Unity Ads para próxima tirada extra: ${progress}/2.`;
+    $("unityAdMsg").textContent = `anuncios recompensados para próxima tirada extra: ${progress}/2.`;
   } else {
     $("unityAdBtn").classList.add("hidden");
     $("unityAdMsg").textContent = "";
@@ -448,7 +654,7 @@ $("spinBtn").addEventListener("click", async () => {
     $("coinBalance").textContent = data.coins;
 
     if (data.spinType === "unity_ads_extra") {
-      $("rouletteResult").textContent = `Tirada extra con Unity Ads. Premio: ${data.prize} 🪙.`;
+      $("rouletteResult").textContent = `Tirada extra con anuncios recompensados. Premio: ${data.prize} 🪙.`;
     } else {
       $("rouletteResult").textContent = `Premio: ${data.prize} 🪙. Tiradas gratis restantes hoy: ${data.freeSpinsLeft}.`;
     }
@@ -458,9 +664,9 @@ $("spinBtn").addEventListener("click", async () => {
   } catch (err) {
     $("rouletteResult").textContent = err.message;
 
-    if (err.message.includes("Unity Ads") || err.message.includes("tirada extra")) {
+    if (err.message.includes("anuncios recompensados") || err.message.includes("tirada extra")) {
       $("unityAdBtn").classList.remove("hidden");
-      $("unityAdMsg").textContent = "Necesitas ver 2 anuncios de Unity Ads para desbloquear una tirada extra.";
+      $("unityAdMsg").textContent = "Necesitas ver 2 anuncios de anuncios recompensados para desbloquear una tirada extra.";
     }
   }
 });
@@ -470,14 +676,14 @@ $("unityAdBtn").addEventListener("click", async () => {
 
   try {
     $("unityAdBtn").disabled = true;
-    $("unityAdMsg").textContent = "Simulando Unity Ad...";
-    await new Promise(resolve => setTimeout(resolve, 1600));
+    $("unityAdMsg").textContent = "Cargando 5 anuncios recompensados...";
+    await showRewardedVignetteAd("Mira 5 anuncios para avanzar hacia una tirada extra.");
 
     const data = await api("/api/roulette/unity-ad", { method: "POST" });
-    $("unityAdMsg").textContent = `Unity Ad visto. Progreso para tirada extra: ${data.rouletteUnityAds}/2.`;
+    $("unityAdMsg").textContent = `Anuncio visto. Progreso para tirada extra: ${data.rouletteUnityAds}/2.`;
 
     if (data.rouletteUnityAds >= 2) {
-      $("unityAdMsg").textContent = "Ya tienes 2 Unity Ads vistos. Puedes girar una tirada extra.";
+      $("unityAdMsg").textContent = "Ya tienes 2 anuncios vistos. Puedes girar una tirada extra.";
     }
 
     await refreshMe();
@@ -744,6 +950,186 @@ document.querySelectorAll(".withdraw-coins-input").forEach(input => {
 $("refreshProfileWithdrawals")?.addEventListener("click", async () => {
   await loadMyWithdrawals();
 });
+
+
+function resetOfferwallMessage() {
+  if ($("offerwallMsg") && !$("offerwallMsg").textContent) {
+    $("offerwallMsg").textContent = "Pulsa el botón para cargar las encuestas configuradas.";
+  }
+}
+
+$("loadOfferwallBtn")?.addEventListener("click", async () => {
+  if (!requireLogin()) return;
+
+  try {
+    $("offerwallMsg").textContent = "Cargando offerwall...";
+    const data = await api("/api/surveys/offerwall");
+
+    if (!data.configured) {
+      $("offerwallBox").classList.add("hidden");
+      $("offerwallMsg").textContent = data.message || "Offerwall no configurado todavía.";
+      return;
+    }
+
+    $("offerwallBox").classList.remove("hidden");
+    $("offerwallFrame").src = data.url;
+    $("offerwallMsg").textContent = `${data.name} cargado para tu usuario.`;
+  } catch (err) {
+    $("offerwallMsg").textContent = err.message;
+  }
+});
+
+const puzzleData = [
+  {
+    id: "puzzle1",
+    title: "Puzzle 1",
+    pieces: ["👑", "🪙", "🎡", "📋", "🧠", "🔎", "🎁", "⭐", "💎"]
+  },
+  {
+    id: "puzzle2",
+    title: "Puzzle 2",
+    pieces: ["A", "P", "P", "C", "A", "S", "H", "K", "G"]
+  },
+  {
+    id: "puzzle3",
+    title: "Puzzle 3",
+    pieces: ["1", "2", "3", "4", "5", "6", "7", "8", "9"]
+  }
+];
+
+let currentPuzzleIndex = Number(localStorage.getItem("jck_current_puzzle_game") || 0);
+if (!Number.isFinite(currentPuzzleIndex) || currentPuzzleIndex < 0 || currentPuzzleIndex >= puzzleData.length) {
+  currentPuzzleIndex = 0;
+}
+
+let puzzleNextAvailableAt = Number(localStorage.getItem("jck_puzzle_next_available_at") || 0);
+let puzzleNeedsUnityAd = localStorage.getItem("jck_puzzle_needs_unity_ad") === "true";
+
+function shuffleArray(items) {
+  return [...items].sort(() => Math.random() - 0.5);
+}
+
+function setPuzzleIndex(index) {
+  currentPuzzleIndex = index;
+  localStorage.setItem("jck_current_puzzle_game", String(currentPuzzleIndex));
+  renderPuzzle();
+}
+
+function updatePuzzleCooldownText() {
+  const remaining = puzzleNextAvailableAt - Date.now();
+
+  if (remaining > 0) {
+    const seconds = Math.ceil(remaining / 1000);
+    $("puzzleCooldownText").textContent = `${seconds}s`;
+  } else {
+    $("puzzleCooldownText").textContent = puzzleNeedsUnityAd ? "anuncio recompensado pendiente" : "Disponible";
+  }
+
+  $("puzzleUnityAdBtn").classList.toggle("hidden", !puzzleNeedsUnityAd);
+}
+
+function renderPuzzle() {
+  const puzzle = puzzleData[currentPuzzleIndex];
+
+  $("puzzleCurrentTitle").textContent = puzzle.title;
+
+  ["puzzleSelect1", "puzzleSelect2", "puzzleSelect3"].forEach((id, idx) => {
+    if ($(id)) $(id).classList.toggle("active", idx === currentPuzzleIndex);
+  });
+
+  const board = $("puzzleBoard");
+  board.innerHTML = "";
+
+  shuffleArray(puzzle.pieces).forEach(piece => {
+    const tile = document.createElement("button");
+    tile.type = "button";
+    tile.className = "puzzle-tile";
+    tile.textContent = piece;
+    tile.addEventListener("click", () => tile.classList.toggle("selected"));
+    board.appendChild(tile);
+  });
+
+  updatePuzzleCooldownText();
+}
+
+$("puzzleSelect1")?.addEventListener("click", () => setPuzzleIndex(0));
+$("puzzleSelect2")?.addEventListener("click", () => setPuzzleIndex(1));
+$("puzzleSelect3")?.addEventListener("click", () => setPuzzleIndex(2));
+
+$("completePuzzleBtn")?.addEventListener("click", async () => {
+  if (!requireLogin()) return;
+
+  const remaining = puzzleNextAvailableAt - Date.now();
+  if (remaining > 0) {
+    $("puzzleMsg").textContent = `Debes esperar ${Math.ceil(remaining / 1000)} segundos antes de completar otro puzzle.`;
+    updatePuzzleCooldownText();
+    return;
+  }
+
+  if (puzzleNeedsUnityAd) {
+    $("puzzleMsg").textContent = "Antes de pasar al siguiente puzzle debes ver un anuncio recompensado recompensado.";
+    $("puzzleUnityAdBtn").classList.remove("hidden");
+    return;
+  }
+
+  try {
+    const puzzle = puzzleData[currentPuzzleIndex];
+    const data = await api("/api/puzzle/complete", {
+      method: "POST",
+      body: JSON.stringify({ puzzleId: puzzle.id })
+    });
+
+    $("coinBalance").textContent = data.coins;
+    $("puzzleMsg").textContent = `${puzzle.title} completado. Ganaste ${data.added} coins. Ahora espera 2 minutos y mira un anuncio recompensado para el siguiente.`;
+
+    puzzleNextAvailableAt = data.nextAvailableAt || (Date.now() + 2 * 60 * 1000);
+    puzzleNeedsUnityAd = Boolean(data.needsUnityAdForNext);
+
+    localStorage.setItem("jck_puzzle_next_available_at", String(puzzleNextAvailableAt));
+    localStorage.setItem("jck_puzzle_needs_unity_ad", String(puzzleNeedsUnityAd));
+
+    currentPuzzleIndex = (currentPuzzleIndex + 1) % puzzleData.length;
+    localStorage.setItem("jck_current_puzzle_game", String(currentPuzzleIndex));
+
+    renderPuzzle();
+    await refreshMe();
+  } catch (err) {
+    if (err.message.includes("anuncio recompensado")) {
+      puzzleNeedsUnityAd = true;
+      localStorage.setItem("jck_puzzle_needs_unity_ad", "true");
+      $("puzzleUnityAdBtn").classList.remove("hidden");
+    }
+
+    $("puzzleMsg").textContent = err.message;
+  }
+});
+
+$("puzzleUnityAdBtn")?.addEventListener("click", async () => {
+  if (!requireLogin()) return;
+
+  try {
+    $("puzzleUnityAdBtn").disabled = true;
+    $("puzzleMsg").textContent = "Cargando 5 anuncios recompensados...";
+    await showRewardedVignetteAd("Mira 5 anuncios para desbloquear el siguiente puzzle.");
+
+    await api("/api/puzzle/unity-ad", { method: "POST" });
+
+    puzzleNeedsUnityAd = false;
+    localStorage.setItem("jck_puzzle_needs_unity_ad", "false");
+
+    $("puzzleMsg").textContent = "Anuncio visto. Cuando pasen los 2 minutos, podrás completar el siguiente puzzle.";
+    updatePuzzleCooldownText();
+    await refreshMe();
+  } catch (err) {
+    $("puzzleMsg").textContent = err.message;
+  } finally {
+    $("puzzleUnityAdBtn").disabled = false;
+  }
+});
+
+setInterval(() => {
+  if ($("puzzleCooldownText")) updatePuzzleCooldownText();
+}, 1000);
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/sw.js").catch(() => {});

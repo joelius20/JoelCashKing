@@ -26,6 +26,11 @@ const APP_NAME = process.env.APP_NAME || "JoelCashKing";
 const PUBLIC_URL = process.env.PUBLIC_URL || "";
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "";
 
+// URL pública del offerwall/encuestas.
+// Puedes usar tokens: {{USER_ID}}, {{USERNAME}}, {{EMAIL}}, {{PUBLIC_URL}}
+const OFFERWALL_URL = process.env.OFFERWALL_URL || "";
+const OFFERWALL_NAME = process.env.OFFERWALL_NAME || "Offerway";
+
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 const DB_FILE = process.env.DB_FILE || path.join(DATA_DIR, "db.json");
 
@@ -153,6 +158,8 @@ function publicUser(user, db) {
   user.stats.unityAdsWatched = user.stats.unityAdsWatched || 0;
   user.stats.spins = user.stats.spins || 0;
   user.stats.withdrawalsRequested = user.stats.withdrawalsRequested || 0;
+  user.stats.puzzlesCompleted = user.stats.puzzlesCompleted || 0;
+  user.stats.puzzleUnityAdsWatched = user.stats.puzzleUnityAdsWatched || 0;
 
   return {
     id: user.id,
@@ -202,7 +209,9 @@ function ensureDaily(user) {
     rouletteUnityAds: 0,
     extraSpins: 0,
     quiz: 0,
-    wordSearch: 0
+    wordSearch: 0,
+    puzzleCompletedAt: 0,
+    puzzleUnityAdReady: false
   };
   user.daily[key].ads = user.daily[key].ads || 0;
   user.daily[key].spins = user.daily[key].spins || 0;
@@ -210,6 +219,8 @@ function ensureDaily(user) {
   user.daily[key].extraSpins = user.daily[key].extraSpins || 0;
   user.daily[key].quiz = user.daily[key].quiz || 0;
   user.daily[key].wordSearch = user.daily[key].wordSearch || 0;
+  user.daily[key].puzzleCompletedAt = user.daily[key].puzzleCompletedAt || 0;
+  user.daily[key].puzzleUnityAdReady = Boolean(user.daily[key].puzzleUnityAdReady || false);
   return user.daily[key];
 }
 
@@ -262,7 +273,9 @@ app.post("/api/register", authLimiter, (req, res) => {
       adsWatched: 0,
       unityAdsWatched: 0,
       spins: 0,
-      withdrawalsRequested: 0
+      withdrawalsRequested: 0,
+      puzzlesCompleted: 0,
+      puzzleUnityAdsWatched: 0
     },
     daily: {}
   };
@@ -359,7 +372,14 @@ app.post("/api/reward/quiz", authUser, (req, res) => {
 
 app.post("/api/reward/wordsearch", authUser, (req, res) => {
   const puzzleId = String(req.body.puzzleId || "basic").slice(0, 30);
-  const reward = 30;
+
+  const rewards = {
+    basic: 30,
+    advanced: 30,
+    easy3: 10
+  };
+
+  const reward = rewards[puzzleId] ?? 30;
 
   req.user.stats.wordSearchSolved += 1;
   req.user.stats.coinsEarned = (req.user.stats.coinsEarned || 0) + reward;
@@ -701,6 +721,100 @@ app.post("/api/shop/withdraw-gift-card", withdrawLimiter, authUser, (req, res) =
     ok: true,
     coins: req.user.coins,
     withdrawal
+  });
+});
+
+
+app.get("/api/surveys/offerwall", authUser, (req, res) => {
+  if (!OFFERWALL_URL) {
+    return res.json({
+      configured: false,
+      name: OFFERWALL_NAME,
+      url: "",
+      message: "Offerwall no configurado. Añade OFFERWALL_URL en variables de entorno."
+    });
+  }
+
+  const replacements = {
+    "{{USER_ID}}": encodeURIComponent(req.user.id),
+    "{{USERNAME}}": encodeURIComponent(req.user.username),
+    "{{EMAIL}}": encodeURIComponent(req.user.email),
+    "{{PUBLIC_URL}}": encodeURIComponent(PUBLIC_URL || "")
+  };
+
+  let url = OFFERWALL_URL;
+  for (const [key, value] of Object.entries(replacements)) {
+    url = url.split(key).join(value);
+  }
+
+  res.json({
+    configured: true,
+    name: OFFERWALL_NAME,
+    url,
+    userId: req.user.id
+  });
+});
+
+app.post("/api/puzzle/unity-ad", authUser, (req, res) => {
+  const daily = ensureDaily(req.user);
+
+  daily.puzzleUnityAdReady = true;
+  req.user.stats.puzzleUnityAdsWatched = (req.user.stats.puzzleUnityAdsWatched || 0) + 1;
+
+  saveDb(req.db);
+
+  res.json({
+    ok: true,
+    puzzleUnityAdReady: true,
+    message: "Unity Ad visto. Puedes desbloquear el siguiente puzzle."
+  });
+});
+
+app.post("/api/puzzle/complete", authUser, (req, res) => {
+  const puzzleId = String(req.body.puzzleId || "puzzle1").slice(0, 30);
+  const allowedPuzzles = ["puzzle1", "puzzle2", "puzzle3"];
+
+  if (!allowedPuzzles.includes(puzzleId)) {
+    return res.status(400).json({ error: "Puzzle no válido." });
+  }
+
+  const daily = ensureDaily(req.user);
+  const now = Date.now();
+  const twoMinutes = 2 * 60 * 1000;
+  const elapsed = now - Number(daily.puzzleCompletedAt || 0);
+
+  if (daily.puzzleCompletedAt && elapsed < twoMinutes) {
+    return res.status(429).json({
+      error: "Debes esperar 2 minutos entre puzzles.",
+      waitMs: twoMinutes - elapsed
+    });
+  }
+
+  if (daily.puzzleCompletedAt && !daily.puzzleUnityAdReady) {
+    return res.status(429).json({
+      error: "Antes de pasar al siguiente puzzle debes ver un Unity Ad recompensado.",
+      needsUnityAd: true
+    });
+  }
+
+  const reward = 15;
+
+  daily.puzzleCompletedAt = now;
+  daily.puzzleUnityAdReady = false;
+
+  req.user.stats.puzzlesCompleted = (req.user.stats.puzzlesCompleted || 0) + 1;
+  req.user.stats.coinsEarned = (req.user.stats.coinsEarned || 0) + reward;
+  req.user.coins += reward;
+
+  saveDb(req.db);
+
+  res.json({
+    ok: true,
+    puzzleId,
+    added: reward,
+    coins: req.user.coins,
+    nextAvailableAt: now + twoMinutes,
+    needsUnityAdForNext: true
   });
 });
 

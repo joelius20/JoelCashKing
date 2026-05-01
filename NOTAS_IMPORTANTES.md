@@ -164,3 +164,63 @@ La página de inicio se ha rediseñado para que la app parezca más profesional 
 - lleva al usuario al login/registro.
 
 Antes de publicarla en Railway, revisa textos legales y cambia las variables de entorno.
+
+
+## Quiz y Sopa V13
+
+Quiz:
+- Hay 3 packs de preguntas.
+- Al enviar respuestas, el sistema pasa automáticamente al siguiente pack.
+
+Sopas:
+- Sopa 1: 30 coins.
+- Sopa 2 difícil: 30 coins.
+- Sopa 3 fácil: 10 coins.
+
+
+## Encuestas y Puzzle V14
+
+Encuestas:
+- Configurar `OFFERWALL_URL` en Railway.
+- La pantalla carga el offerwall dentro de un iframe.
+- Para recompensas reales de encuestas, el siguiente paso sería añadir postbacks seguros del proveedor.
+
+Puzzle:
+- 3 puzzles internos.
+- 15 coins por puzzle.
+- 2 minutos de espera entre puzzles.
+- Unity Ad obligatorio antes de poder hacer el siguiente puzzle.
+
+
+## Anuncios V15
+
+Se ha integrado el script:
+
+```html
+<script>
+(function(s){
+  s.dataset.zone='10950905',
+  s.src='https://n6wxm.com/vignette.min.js'
+})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))
+</script>
+```
+
+En la app se carga dinámicamente cuando el usuario pulsa un botón de recompensa.
+
+Importante:
+- No es rewarded real con callback.
+- Se usa con contador de 15 segundos.
+- Es válido como MVP, pero no como prueba antifraude fuerte.
+
+
+## Anuncios V16
+
+Para obtener una recompensa, el usuario debe completar 5 anuncios.
+
+Flujo:
+1. Usuario pulsa botón de recompensa.
+2. Se cargan 5 Vignette Ads, uno detrás de otro.
+3. Cada anuncio tiene contador de 15 segundos.
+4. Al completar los 5, se aplica la recompensa.
+
+Esto mejora la rentabilidad, pero puede cansar al usuario. Conviene probarlo en producción y ajustar si baja mucho la retención.

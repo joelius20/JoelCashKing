@@ -71,3 +71,20 @@ Puedes usarlo para comprobar que está viva.
 ## Aviso importante
 
 Esta V11 es producción MVP. Para crecer con muchos usuarios, lo siguiente recomendable es migrar de `db.json` a PostgreSQL/Supabase.
+
+
+## Variables para encuestas / offerwall
+
+Si vas a conectar un offerwall de encuestas, añade:
+
+```env
+OFFERWALL_NAME=Offerway
+OFFERWALL_URL=https://tu-offerwall.com/wall?user_id={{USER_ID}}&username={{USERNAME}}&email={{EMAIL}}
+```
+
+Tokens disponibles:
+- `{{USER_ID}}`
+- `{{USERNAME}}`
+- `{{EMAIL}}`
+- `{{PUBLIC_URL}}`
+```

@@ -165,7 +165,7 @@
           <article>
             <span>🎡</span>
             <h3>Ruleta</h3>
-            <p>Una tirada gratis diaria y extras con Unity Ads.</p>
+            <p>Una tirada gratis diaria y extras con anuncio recompensados.</p>
           </article>
         </div>
       </section>
@@ -243,12 +243,14 @@
         </div>
       </section>
 
-      <nav class="tabs tabs-six">
+      <nav class="tabs tabs-eight">
         <button class="tab active" data-screen="home">Inicio</button>
         <button class="tab" data-screen="profile">Perfil</button>
         <button class="tab" data-screen="quiz">Quiz</button>
         <button class="tab" data-screen="wordsearch">Sopa</button>
         <button class="tab" data-screen="roulette">Ruleta</button>
+        <button class="tab" data-screen="surveys">Encuestas</button>
+        <button class="tab" data-screen="puzzle">Puzzle</button>
         <button class="tab" data-screen="shop">Tienda</button>
       </nav>
 
@@ -280,6 +282,16 @@
             <span>📺</span>
             <h3>Anuncios vistos</h3>
             <strong id="statAds">0</strong>
+          </div>
+          <div class="mini-card">
+            <span>🧩</span>
+            <h3>Puzzles completados</h3>
+            <strong id="statPuzzles">0</strong>
+          </div>
+          <div class="mini-card">
+            <span>📋</span>
+            <h3>Encuestas</h3>
+            <strong>Offerwall</strong>
           </div>
         </article>
       </section>
@@ -352,8 +364,10 @@
       <section id="quiz" class="screen">
         <article class="card">
           <h2>Quiz rápido</h2>
+          <p id="quizTitle" class="muted">Quiz 1: JoelCashKing básico</p>
           <div id="quizContainer"></div>
           <button id="submitQuizBtn" class="primary full">Enviar respuestas</button>
+          <p id="quizMsg" class="status"></p>
         </article>
       </section>
 
@@ -362,9 +376,10 @@
           <h2>Sopa de letras</h2>
           <p id="wordSearchIntro">Primera sopa: más palabras y más dificultad. Cuando la termines, puedes pasar a la segunda.</p>
 
-          <div class="auth-tabs">
+          <div class="auth-tabs word-tabs">
             <button id="wordPuzzle1Btn" class="auth-tab active" type="button">Sopa 1</button>
             <button id="wordPuzzle2Btn" class="auth-tab" type="button">Sopa 2 difícil</button>
+            <button id="wordPuzzle3Btn" class="auth-tab" type="button">Sopa 3 fácil</button>
           </div>
 
           <p id="wordList" class="word-list"></p>
@@ -380,11 +395,81 @@
           <div id="rouletteWheel" class="wheel">👑</div>
           <p id="rouletteResult">Tienes 1 tirada gratuita al día.</p>
           <p id="rouletteAdsInfo" class="muted small">
-            Después de la tirada gratis, cada tirada extra necesitará 2 anuncios de Unity Ads.
+            Después de la tirada gratis, cada avance de anuncio necesita ver 5 anuncios recompensados.
           </p>
           <button id="spinBtn" class="primary full">Girar ruleta</button>
-          <button id="unityAdBtn" class="secondary full hidden">Ver Unity Ad para tirada extra</button>
+          <button id="unityAdBtn" class="secondary full hidden">Ver anuncio recompensado para tirada extra</button>
           <p id="unityAdMsg" class="status"></p>
+        </article>
+      </section>
+
+      <section id="surveys" class="screen">
+        <article class="card surveys-card">
+          <div class="surveys-hero">
+            <div>
+              <span class="badge">Encuestas</span>
+              <h2>Offerwall de encuestas</h2>
+              <p>
+                Aquí podrás conectar tu offerwall/Offerway de encuestas. La URL se configura en producción
+                con la variable <strong>OFFERWALL_URL</strong>.
+              </p>
+            </div>
+            <div class="surveys-icon">📋</div>
+          </div>
+
+          <div class="notice">
+            Las recompensas reales de encuestas deben llegar por postback del proveedor. Esta pantalla deja preparada la conexión visual.
+          </div>
+
+          <button id="loadOfferwallBtn" class="primary full">Abrir encuestas</button>
+          <p id="offerwallMsg" class="status"></p>
+
+          <div id="offerwallBox" class="offerwall-box hidden">
+            <iframe id="offerwallFrame" title="Offerwall de encuestas"></iframe>
+          </div>
+        </article>
+      </section>
+
+      <section id="puzzle" class="screen">
+        <article class="card puzzle-card">
+          <div class="puzzle-hero">
+            <div>
+              <span class="badge">Minijuego</span>
+              <h2>Puzzle de piezas</h2>
+              <p>
+                Completa 3 puzzles. Entre puzzles hay una espera de 2 minutos y, antes de pasar al siguiente,
+                hay que ver 5 anuncios recompensados.
+              </p>
+            </div>
+            <div class="puzzle-icon">🧩</div>
+          </div>
+
+          <div class="puzzle-status-grid">
+            <div>
+              <span class="muted">Puzzle actual</span>
+              <strong id="puzzleCurrentTitle">Puzzle 1</strong>
+            </div>
+            <div>
+              <span class="muted">Recompensa</span>
+              <strong>15 🪙</strong>
+            </div>
+            <div>
+              <span class="muted">Siguiente puzzle</span>
+              <strong id="puzzleCooldownText">Disponible</strong>
+            </div>
+          </div>
+
+          <div class="puzzle-selector">
+            <button id="puzzleSelect1" class="auth-tab active" type="button">Puzzle 1</button>
+            <button id="puzzleSelect2" class="auth-tab" type="button">Puzzle 2</button>
+            <button id="puzzleSelect3" class="auth-tab" type="button">Puzzle 3</button>
+          </div>
+
+          <div id="puzzleBoard" class="puzzle-board"></div>
+
+          <button id="completePuzzleBtn" class="primary full">Completar puzzle +15 🪙</button>
+          <button id="puzzleUnityAdBtn" class="secondary full hidden">Ver anuncio recompensado para desbloquear siguiente puzzle</button>
+          <p id="puzzleMsg" class="status"></p>
         </article>
       </section>
 
