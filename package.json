@@ -1,7 +1,7 @@
 {
   "name": "joelcashking-v2",
-  "version": "0.18.0",
-  "description": "JoelCashKing V18: integración ayeT-Studios Rewarded Video HTML5.",
+  "version": "0.21.0",
+  "description": "JoelCashKing V21: múltiples botones Direct Ads configurables.",
   "main": "server.js",
   "scripts": {
     "dev": "node server.js",

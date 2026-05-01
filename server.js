@@ -37,6 +37,72 @@ const AYET_PLACEMENT_ID = process.env.AYET_PLACEMENT_ID || "";
 const AYET_ADSLOT_NAME = process.env.AYET_ADSLOT_NAME || "";
 const AYET_OPTIONAL_PARAMETER = process.env.AYET_OPTIONAL_PARAMETER || "";
 const AYET_API_KEY = process.env.AYET_API_KEY || "";
+const AYET_REWARD_MODE = ["client", "s2s"].includes(String(process.env.AYET_REWARD_MODE || "").toLowerCase())
+  ? String(process.env.AYET_REWARD_MODE).toLowerCase()
+  : "s2s";
+
+const DIRECT_AD_URL = process.env.DIRECT_AD_URL || "";
+const DIRECT_AD_WAIT_SECONDS = Number(process.env.DIRECT_AD_WAIT_SECONDS || 30);
+const DIRECT_AD_COOLDOWN_SECONDS = Number(process.env.DIRECT_AD_COOLDOWN_SECONDS || 180);
+const DIRECT_AD_REWARD_COINS = Number(process.env.DIRECT_AD_REWARD_COINS || 5);
+
+function sanitizeDirectAdId(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "")
+    .slice(0, 32);
+}
+
+function buildDirectAdLinks() {
+  const links = [];
+
+  for (let i = 1; i <= 10; i++) {
+    const url = process.env[`DIRECT_AD_LINK_${i}_URL`];
+    if (!url) continue;
+
+    links.push({
+      id: sanitizeDirectAdId(process.env[`DIRECT_AD_LINK_${i}_ID`] || `direct${i}`),
+      name: String(process.env[`DIRECT_AD_LINK_${i}_NAME`] || `Direct Ad ${i}`).slice(0, 60),
+      description: String(process.env[`DIRECT_AD_LINK_${i}_DESCRIPTION`] || "Oferta externa del proveedor").slice(0, 120),
+      url: String(url),
+      rewardCoins: Number(process.env[`DIRECT_AD_LINK_${i}_REWARD_COINS`] || DIRECT_AD_REWARD_COINS),
+      waitSeconds: Number(process.env[`DIRECT_AD_LINK_${i}_WAIT_SECONDS`] || DIRECT_AD_WAIT_SECONDS),
+      cooldownSeconds: Number(process.env[`DIRECT_AD_LINK_${i}_COOLDOWN_SECONDS`] || DIRECT_AD_COOLDOWN_SECONDS)
+    });
+  }
+
+  if (!links.length && DIRECT_AD_URL) {
+    links.push({
+      id: "direct1",
+      name: "Direct Ad 1",
+      description: "Oferta externa del proveedor",
+      url: DIRECT_AD_URL,
+      rewardCoins: DIRECT_AD_REWARD_COINS,
+      waitSeconds: DIRECT_AD_WAIT_SECONDS,
+      cooldownSeconds: DIRECT_AD_COOLDOWN_SECONDS
+    });
+  }
+
+  const seen = new Set();
+  return links
+    .filter(link => link.id && link.url)
+    .filter(link => {
+      if (seen.has(link.id)) return false;
+      seen.add(link.id);
+      return true;
+    });
+}
+
+function getDirectAdLinks() {
+  return buildDirectAdLinks();
+}
+
+function getDirectAdLink(linkId) {
+  const links = getDirectAdLinks();
+  const cleanId = sanitizeDirectAdId(linkId) || (links[0] && links[0].id);
+  return links.find(link => link.id === cleanId) || null;
+}
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 const DB_FILE = process.env.DB_FILE || path.join(DATA_DIR, "db.json");
@@ -95,6 +161,7 @@ function initialDb() {
     users: {},
     withdrawals: [],
     rewardedVideoConversions: {},
+    ayetS2SCallbacks: {},
     settings: {
       minWithdrawalCoins: 1000,
       coinRate: 1000,
@@ -111,6 +178,13 @@ app.get("/health", (req, res) => {
     publicUrl: PUBLIC_URL || null,
     requiredAdsPerReward: REQUIRED_ADS_PER_REWARD,
     ayetConfigured: Boolean(AYET_PLACEMENT_ID && AYET_ADSLOT_NAME),
+    ayetRewardMode: AYET_REWARD_MODE,
+    ayetCallbackUrl: PUBLIC_URL ? `${PUBLIC_URL}/api/ayet/s2s-callback` : null,
+    directAdConfigured: getDirectAdLinks().length > 0,
+    directAdLinksCount: getDirectAdLinks().length,
+    directAdRewardCoins: DIRECT_AD_REWARD_COINS,
+    directAdWaitSeconds: DIRECT_AD_WAIT_SECONDS,
+    directAdCooldownSeconds: DIRECT_AD_COOLDOWN_SECONDS,
     time: new Date().toISOString()
   });
 });
@@ -126,6 +200,7 @@ function loadDb() {
   db.users = db.users || {};
   db.withdrawals = db.withdrawals || [];
   db.rewardedVideoConversions = db.rewardedVideoConversions || {};
+  db.ayetS2SCallbacks = db.ayetS2SCallbacks || {};
   db.settings = db.settings || initialDb().settings;
   return db;
 }
@@ -171,6 +246,7 @@ function publicUser(user, db) {
   user.stats.withdrawalsRequested = user.stats.withdrawalsRequested || 0;
   user.stats.puzzlesCompleted = user.stats.puzzlesCompleted || 0;
   user.stats.puzzleUnityAdsWatched = user.stats.puzzleUnityAdsWatched || 0;
+  user.stats.directAdsCompleted = user.stats.directAdsCompleted || 0;
 
   return {
     id: user.id,
@@ -227,7 +303,10 @@ function ensureDaily(user) {
       coins: 0,
       roulette: 0,
       puzzle: 0
-    }
+    },
+    directAdStartedAt: 0,
+    directAdLastRewardAt: 0,
+    directAds: {}
   };
   user.daily[key].ads = user.daily[key].ads || 0;
   user.daily[key].spins = user.daily[key].spins || 0;
@@ -241,6 +320,9 @@ function ensureDaily(user) {
   user.daily[key].rewardedAdProgress.coins = user.daily[key].rewardedAdProgress.coins || 0;
   user.daily[key].rewardedAdProgress.roulette = user.daily[key].rewardedAdProgress.roulette || 0;
   user.daily[key].rewardedAdProgress.puzzle = user.daily[key].rewardedAdProgress.puzzle || 0;
+  user.daily[key].directAdStartedAt = user.daily[key].directAdStartedAt || 0;
+  user.daily[key].directAdLastRewardAt = user.daily[key].directAdLastRewardAt || 0;
+  user.daily[key].directAds = user.daily[key].directAds || {};
   return user.daily[key];
 }
 
@@ -334,6 +416,93 @@ function verifyAyetClientReward(details, userId) {
   return { ok: true, conversionId };
 }
 
+function getQueryValue(query, key) {
+  const value = query[key];
+  if (Array.isArray(value)) return String(value[0] || "");
+  return String(value || "");
+}
+
+function buildAyetSecurityBaseString(query) {
+  return Object.keys(query)
+    .sort()
+    .map(key => {
+      const value = Array.isArray(query[key]) ? query[key][0] : query[key];
+      return `${key}=${String(value ?? "")}`;
+    })
+    .join("&");
+}
+
+function verifyAyetS2SHash(req) {
+  if (!AYET_API_KEY) {
+    return { ok: true, skipped: true };
+  }
+
+  const received = String(req.get("X-Ayetstudios-Security-Hash") || "").trim();
+  if (!received) {
+    return { ok: false, error: "Falta header X-Ayetstudios-Security-Hash." };
+  }
+
+  const baseString = buildAyetSecurityBaseString(req.query);
+  const expected = crypto
+    .createHmac("sha256", AYET_API_KEY)
+    .update(baseString)
+    .digest("hex");
+
+  try {
+    const a = Buffer.from(received, "hex");
+    const b = Buffer.from(expected, "hex");
+
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      return { ok: false, error: "Hash S2S de ayeT no válido." };
+    }
+  } catch {
+    return { ok: false, error: "Hash S2S de ayeT con formato inválido." };
+  }
+
+  return { ok: true };
+}
+
+function findUserByExternalIdentifier(db, externalIdentifier) {
+  const value = String(externalIdentifier || "");
+  return Object.values(db.users || {}).find(user =>
+    String(user.id) === value ||
+    String(user.username) === value ||
+    String(user.email) === value
+  ) || null;
+}
+
+function recordRewardedProgressFromServer(db, user, purpose, transactionId, payload, source) {
+  db.rewardedVideoConversions = db.rewardedVideoConversions || {};
+
+  if (db.rewardedVideoConversions[transactionId]) {
+    return {
+      ok: true,
+      duplicate: true,
+      progress: null
+    };
+  }
+
+  const daily = ensureDaily(user);
+  daily.rewardedAdProgress[purpose] = (daily.rewardedAdProgress[purpose] || 0) + 1;
+
+  incrementRewardedAdStats(user, purpose);
+
+  db.rewardedVideoConversions[transactionId] = {
+    userId: user.id,
+    username: user.username,
+    purpose,
+    source,
+    payload,
+    createdAt: new Date().toISOString()
+  };
+
+  return {
+    ok: true,
+    duplicate: false,
+    progress: rewardedProgressPayload(daily, purpose)
+  };
+}
+
 app.post("/api/register", authLimiter, (req, res) => {
   const db = loadDb();
 
@@ -385,7 +554,8 @@ app.post("/api/register", authLimiter, (req, res) => {
       spins: 0,
       withdrawalsRequested: 0,
       puzzlesCompleted: 0,
-      puzzleUnityAdsWatched: 0
+      puzzleUnityAdsWatched: 0,
+      directAdsCompleted: 0
     },
     daily: {}
   };
@@ -461,7 +631,106 @@ app.get("/api/ayet/config", authUser, (req, res) => {
     adslotName: configured ? AYET_ADSLOT_NAME : "",
     externalIdentifier: req.user.id,
     optionalParameter: AYET_OPTIONAL_PARAMETER || "joelcashking",
+    rewardMode: AYET_REWARD_MODE,
+    s2sCallbackUrl: PUBLIC_URL ? `${PUBLIC_URL}/api/ayet/s2s-callback` : "",
     requiredAdsPerReward: REQUIRED_ADS_PER_REWARD
+  });
+});
+
+app.get("/api/rewarded-ad/status", authUser, (req, res) => {
+  const purpose = normalizeRewardPurpose(req.query.purpose);
+
+  if (!purpose) {
+    return res.status(400).json({ error: "Tipo de recompensa no válido." });
+  }
+
+  const daily = ensureDaily(req.user);
+
+  res.json({
+    ok: true,
+    ...rewardedProgressPayload(daily, purpose)
+  });
+});
+
+app.get("/api/ayet/s2s-callback", (req, res) => {
+  const db = loadDb();
+  db.ayetS2SCallbacks = db.ayetS2SCallbacks || {};
+
+  const transactionId = getQueryValue(req.query, "transaction_id");
+  const externalIdentifier = getQueryValue(req.query, "external_identifier");
+  const currencyAmountRaw = getQueryValue(req.query, "currency_amount");
+  const payoutUsdRaw = getQueryValue(req.query, "payout_usd");
+  const callbackType = getQueryValue(req.query, "callback_type") || "conversion";
+  const isChargeback = getQueryValue(req.query, "is_chargeback") === "1" || transactionId.startsWith("r-");
+  const adslotId = getQueryValue(req.query, "adslot_id");
+  const placementIdentifier = getQueryValue(req.query, "placement_identifier");
+  const purpose = normalizeRewardPurpose(getQueryValue(req.query, "custom_1")) || "coins";
+
+  const logId = transactionId || crypto.randomUUID();
+  const payload = {
+    query: req.query,
+    transactionId,
+    externalIdentifier,
+    currencyAmount: Number(currencyAmountRaw || 0),
+    payoutUsd: Number(payoutUsdRaw || 0),
+    callbackType,
+    isChargeback,
+    adslotId,
+    placementIdentifier,
+    purpose,
+    receivedAt: new Date().toISOString()
+  };
+
+  db.ayetS2SCallbacks[logId] = payload;
+
+  const hashCheck = verifyAyetS2SHash(req);
+  if (!hashCheck.ok) {
+    db.ayetS2SCallbacks[logId].status = "rejected_hash";
+    db.ayetS2SCallbacks[logId].error = hashCheck.error;
+    saveDb(db);
+    return res.status(200).json({ ok: false, error: hashCheck.error });
+  }
+
+  if (!transactionId) {
+    db.ayetS2SCallbacks[logId].status = "rejected_missing_transaction";
+    saveDb(db);
+    return res.status(200).json({ ok: false, error: "Falta transaction_id." });
+  }
+
+  const user = findUserByExternalIdentifier(db, externalIdentifier);
+  if (!user) {
+    db.ayetS2SCallbacks[logId].status = "rejected_user_not_found";
+    saveDb(db);
+    return res.status(200).json({ ok: false, error: "Usuario no encontrado." });
+  }
+
+  if (isChargeback || Number(currencyAmountRaw || 0) < 0 || Number(payoutUsdRaw || 0) < 0) {
+    db.ayetS2SCallbacks[logId].status = "chargeback_ignored";
+    db.ayetS2SCallbacks[logId].userId = user.id;
+    saveDb(db);
+    return res.status(200).json({ ok: true, status: "chargeback_ignored" });
+  }
+
+  const recorded = recordRewardedProgressFromServer(
+    db,
+    user,
+    purpose,
+    transactionId,
+    payload,
+    "ayet_s2s"
+  );
+
+  db.ayetS2SCallbacks[logId].status = recorded.duplicate ? "duplicate" : "credited_progress";
+  db.ayetS2SCallbacks[logId].userId = user.id;
+  db.ayetS2SCallbacks[logId].progress = recorded.progress;
+
+  saveDb(db);
+
+  return res.status(200).json({
+    ok: true,
+    duplicate: recorded.duplicate,
+    purpose,
+    progress: recorded.progress
   });
 });
 
@@ -479,33 +748,28 @@ app.post("/api/rewarded-ad/ayet-reward", authUser, (req, res) => {
     return res.status(400).json({ error: verified.error });
   }
 
-  req.db.rewardedVideoConversions = req.db.rewardedVideoConversions || {};
+  const recorded = recordRewardedProgressFromServer(
+    req.db,
+    req.user,
+    purpose,
+    verified.conversionId,
+    details,
+    "ayet_client"
+  );
 
-  if (req.db.rewardedVideoConversions[verified.conversionId]) {
+  if (recorded.duplicate) {
     return res.status(409).json({
       error: "Este vídeo ya fue registrado antes.",
       conversionId: verified.conversionId
     });
   }
 
-  const daily = ensureDaily(req.user);
-  daily.rewardedAdProgress[purpose] = (daily.rewardedAdProgress[purpose] || 0) + 1;
-
-  incrementRewardedAdStats(req.user, purpose);
-
-  req.db.rewardedVideoConversions[verified.conversionId] = {
-    userId: req.user.id,
-    username: req.user.username,
-    purpose,
-    createdAt: new Date().toISOString()
-  };
-
   saveDb(req.db);
 
   res.json({
     ok: true,
     conversionId: verified.conversionId,
-    ...rewardedProgressPayload(daily, purpose)
+    ...recorded.progress
   });
 });
 
@@ -923,6 +1187,139 @@ app.post("/api/shop/withdraw-gift-card", withdrawLimiter, authUser, (req, res) =
   });
 });
 
+
+app.get("/api/direct-ad/config", authUser, (req, res) => {
+  const daily = ensureDaily(req.user);
+  const now = Date.now();
+
+  const links = getDirectAdLinks().map(link => {
+    const state = daily.directAds[link.id] || {
+      startedAt: 0,
+      lastRewardAt: 0
+    };
+
+    const cooldownMs = link.cooldownSeconds * 1000;
+    const remainingCooldownMs = Math.max(0, (Number(state.lastRewardAt || 0) + cooldownMs) - now);
+
+    return {
+      id: link.id,
+      name: link.name,
+      description: link.description,
+      rewardCoins: link.rewardCoins,
+      waitSeconds: link.waitSeconds,
+      cooldownSeconds: link.cooldownSeconds,
+      remainingCooldownMs
+    };
+  });
+
+  res.json({
+    configured: links.length > 0,
+    links,
+    defaultRewardCoins: DIRECT_AD_REWARD_COINS,
+    defaultWaitSeconds: DIRECT_AD_WAIT_SECONDS,
+    defaultCooldownSeconds: DIRECT_AD_COOLDOWN_SECONDS
+  });
+});
+
+app.post("/api/direct-ad/start", authUser, (req, res) => {
+  const link = getDirectAdLink(req.body.linkId);
+
+  if (!link) {
+    return res.status(400).json({ error: "Direct Ad no configurado o enlace no válido." });
+  }
+
+  const daily = ensureDaily(req.user);
+  daily.directAds[link.id] = daily.directAds[link.id] || {
+    startedAt: 0,
+    lastRewardAt: 0
+  };
+
+  const state = daily.directAds[link.id];
+  const now = Date.now();
+  const cooldownMs = link.cooldownSeconds * 1000;
+  const remainingCooldownMs = Math.max(0, (Number(state.lastRewardAt || 0) + cooldownMs) - now);
+
+  if (remainingCooldownMs > 0) {
+    return res.status(429).json({
+      error: `Debes esperar antes de abrir ${link.name}.`,
+      linkId: link.id,
+      remainingCooldownMs
+    });
+  }
+
+  state.startedAt = now;
+  saveDb(req.db);
+
+  res.json({
+    ok: true,
+    linkId: link.id,
+    name: link.name,
+    url: link.url,
+    startedAt: now,
+    waitSeconds: link.waitSeconds,
+    rewardCoins: link.rewardCoins
+  });
+});
+
+app.post("/api/direct-ad/complete", authUser, (req, res) => {
+  const link = getDirectAdLink(req.body.linkId);
+
+  if (!link) {
+    return res.status(400).json({ error: "Direct Ad no configurado o enlace no válido." });
+  }
+
+  const daily = ensureDaily(req.user);
+  daily.directAds[link.id] = daily.directAds[link.id] || {
+    startedAt: 0,
+    lastRewardAt: 0
+  };
+
+  const state = daily.directAds[link.id];
+  const now = Date.now();
+  const waitMs = link.waitSeconds * 1000;
+  const cooldownMs = link.cooldownSeconds * 1000;
+
+  if (!state.startedAt) {
+    return res.status(400).json({ error: `Primero debes abrir ${link.name}.` });
+  }
+
+  const remainingWaitMs = Math.max(0, (Number(state.startedAt || 0) + waitMs) - now);
+  if (remainingWaitMs > 0) {
+    return res.status(429).json({
+      error: `Debes permanecer al menos ${link.waitSeconds} segundos antes de reclamar.`,
+      linkId: link.id,
+      remainingWaitMs
+    });
+  }
+
+  const remainingCooldownMs = Math.max(0, (Number(state.lastRewardAt || 0) + cooldownMs) - now);
+  if (remainingCooldownMs > 0) {
+    return res.status(429).json({
+      error: `Debes esperar antes de reclamar otra recompensa de ${link.name}.`,
+      linkId: link.id,
+      remainingCooldownMs
+    });
+  }
+
+  state.startedAt = 0;
+  state.lastRewardAt = now;
+
+  req.user.stats.directAdsCompleted = (req.user.stats.directAdsCompleted || 0) + 1;
+  req.user.stats.coinsEarned = (req.user.stats.coinsEarned || 0) + link.rewardCoins;
+  req.user.coins += link.rewardCoins;
+
+  saveDb(req.db);
+
+  res.json({
+    ok: true,
+    linkId: link.id,
+    name: link.name,
+    added: link.rewardCoins,
+    coins: req.user.coins,
+    nextAvailableAt: now + cooldownMs,
+    cooldownSeconds: link.cooldownSeconds
+  });
+});
 
 app.get("/api/surveys/offerwall", authUser, (req, res) => {
   if (!OFFERWALL_URL) {

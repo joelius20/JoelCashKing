@@ -260,3 +260,49 @@ Recomendado:
 - Configurar `AYET_API_KEY` para verificar firma.
 - Añadir `ads.txt` de ayeT en `/ads.txt`.
 - Mantener fallback Vignette solo para pruebas.
+
+
+## ayeT S2S V19
+
+Callback URL para ayeT:
+
+```text
+https://joelcashking-production.up.railway.app/api/ayet/s2s-callback?transaction_id={transaction_id}&external_identifier={external_identifier}&currency_amount={currency_amount}&payout_usd={payout_usd}&adslot_id={adslot_id}&placement_identifier={placement_identifier}&custom_1={custom_1}&callback_type={callback_type}&is_chargeback={is_chargeback}
+```
+
+El servidor responde HTTP 200 incluso cuando rechaza una conversión, para evitar reintentos infinitos.
+
+Validaciones:
+- `transaction_id` obligatorio.
+- `external_identifier` debe coincidir con un usuario.
+- `custom_1` define el propósito: coins, roulette o puzzle.
+- Duplicados se bloquean por `transaction_id`.
+- Chargebacks/reversals se registran pero no suman progreso.
+- Si `AYET_API_KEY` está configurada, se valida `X-Ayetstudios-Security-Hash`.
+
+
+## Direct Link Ads V20
+
+Sistema:
+1. El usuario pulsa "Abrir Direct Ad".
+2. El backend registra la hora de inicio.
+3. La web abre el Direct Link en otra pestaña.
+4. El usuario debe esperar 30 segundos.
+5. El backend permite reclamar 5 coins.
+6. El usuario queda en cooldown 3 minutos.
+
+Esto es útil para monetizar con Direct Ads, pero no es tan fuerte como postback/offerwall porque no hay confirmación real del proveedor.
+
+
+## Direct Ads V21
+
+Ahora puedes añadir varios botones de Direct Ads desde Railway.
+
+Ejemplo:
+- Anuncio 1: https://omg10.com/4/10951161
+- Anuncio 2: otro tag Direct Link
+- Anuncio 3: otro tag Direct Link
+
+Cada uno se configura con `DIRECT_AD_LINK_N_URL`.
+
+El cooldown se gestiona por enlace, no de forma global.

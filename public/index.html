@@ -244,13 +244,14 @@
         </div>
       </section>
 
-      <nav class="tabs tabs-eight">
+      <nav class="tabs tabs-nine">
         <button class="tab active" data-screen="home">Inicio</button>
         <button class="tab" data-screen="profile">Perfil</button>
         <button class="tab" data-screen="quiz">Quiz</button>
         <button class="tab" data-screen="wordsearch">Sopa</button>
         <button class="tab" data-screen="roulette">Ruleta</button>
         <button class="tab" data-screen="surveys">Encuestas</button>
+        <button class="tab" data-screen="directads">Direct Ads</button>
         <button class="tab" data-screen="puzzle">Puzzle</button>
         <button class="tab" data-screen="shop">Tienda</button>
       </nav>
@@ -293,6 +294,11 @@
             <span>📋</span>
             <h3>Encuestas</h3>
             <strong>Offerwall</strong>
+          </div>
+          <div class="mini-card">
+            <span>🔗</span>
+            <h3>Direct Ads</h3>
+            <strong id="statDirectAds">0</strong>
           </div>
         </article>
       </section>
@@ -428,6 +434,37 @@
           <div id="offerwallBox" class="offerwall-box hidden">
             <iframe id="offerwallFrame" title="Offerwall de encuestas"></iframe>
           </div>
+        </article>
+      </section>
+
+      <section id="directads" class="screen">
+        <article class="card direct-ads-card">
+          <div class="direct-ads-hero">
+            <div>
+              <span class="badge">Direct Link Ads</span>
+              <h2>Gana coins visitando ofertas</h2>
+              <p>
+                Elige un botón, abre la oferta del proveedor en otra pestaña y espera el tiempo indicado
+                antes de reclamar la recompensa.
+              </p>
+            </div>
+            <div class="direct-ads-icon">🔗</div>
+          </div>
+
+          <div class="notice">
+            Puedes configurar varios Direct Links desde Railway. Cada botón puede tener su propio enlace,
+            recompensa, espera y cooldown.
+          </div>
+
+          <div id="directAdsList" class="direct-ads-list"></div>
+
+          <div id="directAdClaimBox" class="direct-ad-claim-box hidden">
+            <strong id="directAdSelectedTitle">Direct Ad seleccionado</strong>
+            <p id="directAdSelectedInfo" class="muted small">Abre el anuncio y espera para reclamar.</p>
+            <button id="claimDirectAdBtn" class="secondary full">Reclamar recompensa</button>
+          </div>
+
+          <p id="directAdMsg" class="status"></p>
         </article>
       </section>
 

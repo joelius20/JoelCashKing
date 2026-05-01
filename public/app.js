@@ -132,8 +132,43 @@ function playAyetFullsizeAd() {
   });
 }
 
+async function getRewardedAdStatus(purpose) {
+  const params = new URLSearchParams({ purpose });
+  return api(`/api/rewarded-ad/status?${params.toString()}`);
+}
+
+async function waitForS2SProgress(purpose, previousProgress) {
+  const startedAt = Date.now();
+  const timeoutMs = 75000;
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const status = await getRewardedAdStatus(purpose);
+
+    if (status.progress > previousProgress || status.ready) {
+      return status;
+    }
+
+    const text = document.getElementById("rewardedAdText");
+    if (text) {
+      const remaining = Math.max(0, Math.ceil((timeoutMs - (Date.now() - startedAt)) / 1000));
+      text.textContent = `Vídeo completado. Esperando callback S2S de ayeT... ${remaining}s`;
+    }
+
+    await sleep(3000);
+  }
+
+  throw new Error("El vídeo terminó, pero el callback S2S de ayeT no llegó a tiempo. Puede tardar hasta 60 segundos; prueba otra vez en unos segundos.");
+}
+
 async function showAyetRewardedVideo(message = "Mira el vídeo para recibir tu recompensa.", purpose = "coins") {
   const config = await initAyetRewardedVideo();
+
+  if (typeof AyetVideoSdk.setCustomParameter === "function") {
+    AyetVideoSdk.setCustomParameter("custom_1", purpose);
+    AyetVideoSdk.setCustomParameter("custom_2", "joelcashking");
+  }
+
+  const beforeStatus = await getRewardedAdStatus(purpose);
 
   showRewardedOverlay(message, 1, REQUIRED_ADS_PER_REWARD);
   const text = document.getElementById("rewardedAdText");
@@ -145,6 +180,13 @@ async function showAyetRewardedVideo(message = "Mira el vídeo para recibir tu r
   removeRewardedOverlay();
 
   const details = await playAyetFullsizeAd();
+
+  if (config.rewardMode === "s2s") {
+    showRewardedOverlay("Vídeo completado. Validando por S2S...", 1, REQUIRED_ADS_PER_REWARD);
+    const status = await waitForS2SProgress(purpose, beforeStatus.progress || 0);
+    removeRewardedOverlay();
+    return status;
+  }
 
   const progress = await api("/api/rewarded-ad/ayet-reward", {
     method: "POST",
@@ -438,6 +480,7 @@ function renderPrivate(user) {
   $("statSpins").textContent = user.stats.spins || 0;
   $("statAds").textContent = totalAds;
   if ($("statPuzzles")) $("statPuzzles").textContent = user.stats.puzzlesCompleted || 0;
+  if ($("statDirectAds")) $("statDirectAds").textContent = user.stats.directAdsCompleted || 0;
 
   if ($("profileUsername")) $("profileUsername").textContent = user.username;
   if ($("profileEmail")) $("profileEmail").textContent = user.email;
@@ -483,6 +526,7 @@ function showScreen(screenId) {
 
   if (screenId === "shop" || screenId === "profile") loadMyWithdrawals();
   if (screenId === "puzzle") renderPuzzle();
+  if (screenId === "directads") loadDirectAdConfig();
   if (screenId === "surveys") resetOfferwallMessage();
 }
 
@@ -1109,6 +1153,181 @@ $("refreshProfileWithdrawals")?.addEventListener("click", async () => {
   await loadMyWithdrawals();
 });
 
+
+let directAdWaitTimer = null;
+let directAdCooldownTimer = null;
+let directAdClaimReadyAt = 0;
+let directAdNextAvailableAt = 0;
+let selectedDirectAdLinkId = "";
+
+function formatCountdownMs(ms) {
+  const seconds = Math.max(0, Math.ceil(ms / 1000));
+  if (seconds >= 60) {
+    const minutes = Math.floor(seconds / 60);
+    const rest = seconds % 60;
+    return `${minutes}m ${rest}s`;
+  }
+  return `${seconds}s`;
+}
+
+function setDirectAdMessage(text) {
+  if ($("directAdMsg")) $("directAdMsg").textContent = text;
+}
+
+function renderDirectAdLinks(links) {
+  const box = $("directAdsList");
+  if (!box) return;
+
+  if (!links || !links.length) {
+    box.innerHTML = `<div class="withdrawal-empty">No hay Direct Ads configurados todavía.</div>`;
+    return;
+  }
+
+  box.innerHTML = links.map(link => `
+    <article class="direct-ad-item" data-link-id="${link.id}">
+      <div class="direct-ad-item-head">
+        <div class="direct-ad-logo">🔗</div>
+        <div>
+          <strong>${link.name}</strong>
+          <span>${link.description || "Oferta externa del proveedor"}</span>
+        </div>
+      </div>
+
+      <div class="direct-ad-meta">
+        <span>+${link.rewardCoins} 🪙</span>
+        <span>${link.waitSeconds}s espera</span>
+        <span>${Math.round(link.cooldownSeconds / 60)} min cooldown</span>
+      </div>
+
+      <button class="primary full direct-open-btn" data-link-id="${link.id}" ${link.remainingCooldownMs > 0 ? "disabled" : ""}>
+        ${link.remainingCooldownMs > 0 ? `Espera ${formatCountdownMs(link.remainingCooldownMs)}` : "Abrir Direct Ad"}
+      </button>
+    </article>
+  `).join("");
+
+  document.querySelectorAll(".direct-open-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      await openDirectAd(btn.dataset.linkId);
+    });
+  });
+}
+
+async function loadDirectAdConfig() {
+  if (!token) return;
+
+  try {
+    const data = await api("/api/direct-ad/config");
+
+    if (!data.configured) {
+      renderDirectAdLinks([]);
+      $("directAdClaimBox")?.classList.add("hidden");
+      setDirectAdMessage("Direct Link Ads no está configurado. Añade DIRECT_AD_LINK_1_URL en Railway.");
+      return;
+    }
+
+    renderDirectAdLinks(data.links);
+    setDirectAdMessage("Elige un botón para abrir una oferta.");
+  } catch (err) {
+    setDirectAdMessage(err.message);
+  }
+}
+
+function startDirectAdWait(waitSeconds, linkName) {
+  clearInterval(directAdWaitTimer);
+
+  directAdClaimReadyAt = Date.now() + (waitSeconds * 1000);
+  $("directAdClaimBox").classList.remove("hidden");
+  $("claimDirectAdBtn").disabled = true;
+
+  directAdWaitTimer = setInterval(() => {
+    const remaining = directAdClaimReadyAt - Date.now();
+
+    if (remaining <= 0) {
+      clearInterval(directAdWaitTimer);
+      $("claimDirectAdBtn").disabled = false;
+      setDirectAdMessage(`Ya puedes reclamar la recompensa de ${linkName}.`);
+      return;
+    }
+
+    setDirectAdMessage(`Espera ${formatCountdownMs(remaining)} antes de reclamar.`);
+  }, 1000);
+}
+
+function startDirectAdCooldown(nextAvailableAt, linkName) {
+  clearInterval(directAdCooldownTimer);
+  $("directAdClaimBox").classList.add("hidden");
+
+  directAdNextAvailableAt = nextAvailableAt;
+
+  directAdCooldownTimer = setInterval(() => {
+    const remaining = directAdNextAvailableAt - Date.now();
+
+    if (remaining <= 0) {
+      clearInterval(directAdCooldownTimer);
+      setDirectAdMessage(`Ya puedes abrir otro Direct Ad de ${linkName}.`);
+      loadDirectAdConfig();
+      return;
+    }
+
+    setDirectAdMessage(`Cooldown activo para ${linkName}. Espera ${formatCountdownMs(remaining)}.`);
+  }, 1000);
+}
+
+async function openDirectAd(linkId) {
+  if (!requireLogin()) return;
+
+  try {
+    selectedDirectAdLinkId = linkId;
+    setDirectAdMessage("Preparando Direct Ad...");
+
+    const data = await api("/api/direct-ad/start", {
+      method: "POST",
+      body: JSON.stringify({ linkId })
+    });
+
+    window.open(data.url, "_blank", "noopener,noreferrer");
+
+    if ($("directAdSelectedTitle")) $("directAdSelectedTitle").textContent = data.name;
+    if ($("directAdSelectedInfo")) {
+      $("directAdSelectedInfo").textContent = `Recompensa: +${data.rewardCoins} coins. Espera mínima: ${data.waitSeconds}s.`;
+    }
+
+    setDirectAdMessage(`${data.name} abierto. Permanece al menos ${data.waitSeconds}s antes de reclamar.`);
+    startDirectAdWait(data.waitSeconds, data.name);
+  } catch (err) {
+    setDirectAdMessage(err.message);
+    await loadDirectAdConfig();
+  }
+}
+
+$("claimDirectAdBtn")?.addEventListener("click", async () => {
+  if (!requireLogin()) return;
+
+  if (!selectedDirectAdLinkId) {
+    setDirectAdMessage("Primero abre un Direct Ad.");
+    return;
+  }
+
+  try {
+    $("claimDirectAdBtn").disabled = true;
+    setDirectAdMessage("Validando recompensa...");
+
+    const data = await api("/api/direct-ad/complete", {
+      method: "POST",
+      body: JSON.stringify({ linkId: selectedDirectAdLinkId })
+    });
+
+    $("coinBalance").textContent = data.coins;
+    setDirectAdMessage(`Recompensa recibida en ${data.name}: +${data.added} coins.`);
+    startDirectAdCooldown(data.nextAvailableAt, data.name);
+
+    await refreshMe();
+    await loadDirectAdConfig();
+  } catch (err) {
+    $("claimDirectAdBtn").disabled = false;
+    setDirectAdMessage(err.message);
+  }
+});
 
 function resetOfferwallMessage() {
   if ($("offerwallMsg") && !$("offerwallMsg").textContent) {

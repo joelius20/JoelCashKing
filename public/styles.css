@@ -1364,7 +1364,7 @@ input, select {
 }
 
 
-.tabs-eight {
+.tabs-nine {
   grid-template-columns: repeat(8, 1fr);
 }
 
@@ -1477,7 +1477,7 @@ input, select {
 }
 
 @media (max-width: 560px) {
-  .tabs-eight {
+  .tabs-nine {
     overflow-x: auto;
     grid-template-columns: repeat(8, minmax(76px, 1fr));
   }
@@ -1588,4 +1588,156 @@ input, select {
   height: 100%;
   border-radius: 999px;
   background: linear-gradient(135deg, var(--gold), var(--gold-2));
+}
+
+
+.tabs-nine {
+  grid-template-columns: repeat(9, 1fr);
+}
+
+.direct-ads-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+.direct-ads-hero h2 {
+  margin: 10px 0 8px;
+  font-size: 32px;
+  letter-spacing: -.04em;
+}
+
+.direct-ads-hero p {
+  color: var(--muted);
+  margin-bottom: 0;
+}
+
+.direct-ads-icon {
+  width: 82px;
+  height: 82px;
+  display: grid;
+  place-items: center;
+  border-radius: 28px;
+  background: rgba(147, 197, 253, .13);
+  font-size: 44px;
+  flex: 0 0 82px;
+}
+
+.direct-ads-status-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.direct-ads-status-grid > div {
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(0,0,0,.18);
+}
+
+.direct-ads-status-grid span,
+.direct-ads-status-grid strong {
+  display: block;
+}
+
+@media (min-width: 520px) {
+  .direct-ads-status-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .tabs-nine {
+    overflow-x: auto;
+    grid-template-columns: repeat(9, minmax(76px, 1fr));
+  }
+
+  .direct-ads-hero {
+    align-items: flex-start;
+  }
+
+  .direct-ads-icon {
+    width: 62px;
+    height: 62px;
+    border-radius: 22px;
+    font-size: 32px;
+    flex-basis: 62px;
+  }
+}
+
+
+.direct-ads-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.direct-ad-item {
+  padding: 16px;
+  border-radius: 24px;
+  border: 1px solid rgba(255,255,255,.09);
+  background: rgba(0,0,0,.16);
+}
+
+.direct-ad-item-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.direct-ad-logo {
+  width: 50px;
+  height: 50px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: rgba(147, 197, 253, .14);
+  font-size: 26px;
+  flex: 0 0 50px;
+}
+
+.direct-ad-item-head strong,
+.direct-ad-item-head span {
+  display: block;
+}
+
+.direct-ad-item-head span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.direct-ad-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.direct-ad-meta span {
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.08);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.direct-ad-claim-box {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 22px;
+  background: rgba(255, 209, 102, .10);
+  border: 1px solid rgba(255, 209, 102, .18);
+}
+
+.direct-ad-claim-box strong,
+.direct-ad-claim-box p {
+  display: block;
+}
+
+.direct-ad-claim-box p {
+  margin: 5px 0 0;
 }
