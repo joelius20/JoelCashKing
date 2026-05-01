@@ -23,6 +23,7 @@ if (IS_PRODUCTION && !ADMIN_KEY) {
 }
 
 const APP_NAME = process.env.APP_NAME || "JoelCashKing";
+const CACHE_VERSION = process.env.CACHE_VERSION || "joelcashking-v22";
 const PUBLIC_URL = process.env.PUBLIC_URL || "";
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "";
 
@@ -152,8 +153,33 @@ const withdrawLimiter = rateLimit({
 });
 
 app.use(generalLimiter);
+
+app.use((req, res, next) => {
+  const pathName = req.path || "";
+
+  const shouldNoStore =
+    pathName.startsWith("/api/") ||
+    pathName === "/health" ||
+    pathName === "/" ||
+    pathName === "/sw.js" ||
+    pathName.endsWith(".html") ||
+    pathName.endsWith(".js") ||
+    pathName.endsWith(".css");
+
+  if (shouldNoStore) {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+    res.setHeader("Surrogate-Control", "no-store");
+  }
+
+  next();
+});
+
 app.use(express.static(path.join(__dirname, "public"), {
-  maxAge: IS_PRODUCTION ? "1h" : 0
+  maxAge: 0,
+  etag: false,
+  lastModified: false
 }));
 
 function initialDb() {
@@ -185,6 +211,15 @@ app.get("/health", (req, res) => {
     directAdRewardCoins: DIRECT_AD_REWARD_COINS,
     directAdWaitSeconds: DIRECT_AD_WAIT_SECONDS,
     directAdCooldownSeconds: DIRECT_AD_COOLDOWN_SECONDS,
+    time: new Date().toISOString()
+  });
+});
+
+app.get("/version", (req, res) => {
+  res.json({
+    app: APP_NAME,
+    version: "0.22.0",
+    cache: CACHE_VERSION || "joelcashking-v22",
     time: new Date().toISOString()
   });
 });

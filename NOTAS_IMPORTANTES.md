@@ -306,3 +306,20 @@ Ejemplo:
 Cada uno se configura con `DIRECT_AD_LINK_N_URL`.
 
 El cooldown se gestiona por enlace, no de forma global.
+
+
+## Caché V22
+
+Esta versión corrige el comportamiento de caché para producción.
+
+Puntos importantes:
+- La API nunca debe cachearse.
+- `app.js` debe venir siempre del servidor.
+- `index.html` debe venir siempre del servidor.
+- `sw.js` debe venir siempre del servidor.
+- El service worker borra cachés antiguas al activarse.
+
+Si un móvil sigue mostrando una versión antigua:
+1. Abrir la web.
+2. Recargar.
+3. Si sigue igual, borrar caché del navegador o entrar con `?v=22`.

@@ -1,7 +1,7 @@
 {
   "name": "joelcashking-v2",
-  "version": "0.21.0",
-  "description": "JoelCashKing V21: múltiples botones Direct Ads configurables.",
+  "version": "0.22.0",
+  "description": "JoelCashKing V22: caché corregida para producción.",
   "main": "server.js",
   "scripts": {
     "dev": "node server.js",
