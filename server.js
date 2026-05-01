@@ -33,6 +33,11 @@ const OFFERWALL_NAME = process.env.OFFERWALL_NAME || "Offerway";
 
 const REQUIRED_ADS_PER_REWARD = Number(process.env.REQUIRED_ADS_PER_REWARD || 5);
 
+const AYET_PLACEMENT_ID = process.env.AYET_PLACEMENT_ID || "";
+const AYET_ADSLOT_NAME = process.env.AYET_ADSLOT_NAME || "";
+const AYET_OPTIONAL_PARAMETER = process.env.AYET_OPTIONAL_PARAMETER || "";
+const AYET_API_KEY = process.env.AYET_API_KEY || "";
+
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
 const DB_FILE = process.env.DB_FILE || path.join(DATA_DIR, "db.json");
 
@@ -89,6 +94,7 @@ function initialDb() {
   return {
     users: {},
     withdrawals: [],
+    rewardedVideoConversions: {},
     settings: {
       minWithdrawalCoins: 1000,
       coinRate: 1000,
@@ -104,6 +110,7 @@ app.get("/health", (req, res) => {
     env: NODE_ENV,
     publicUrl: PUBLIC_URL || null,
     requiredAdsPerReward: REQUIRED_ADS_PER_REWARD,
+    ayetConfigured: Boolean(AYET_PLACEMENT_ID && AYET_ADSLOT_NAME),
     time: new Date().toISOString()
   });
 });
@@ -118,6 +125,7 @@ function loadDb() {
   const db = JSON.parse(fs.readFileSync(DB_FILE, "utf8"));
   db.users = db.users || {};
   db.withdrawals = db.withdrawals || [];
+  db.rewardedVideoConversions = db.rewardedVideoConversions || {};
   db.settings = db.settings || initialDb().settings;
   return db;
 }
@@ -281,6 +289,51 @@ function incrementRewardedAdStats(user, purpose) {
   }
 }
 
+function verifyAyetClientReward(details, userId) {
+  if (!details || typeof details !== "object") {
+    return { ok: false, error: "Respuesta de vídeo inválida." };
+  }
+
+  if (String(details.status || "").toLowerCase() !== "success") {
+    return { ok: false, error: "El vídeo no fue marcado como completado." };
+  }
+
+  if (details.rewarded !== true && String(details.rewarded) !== "true") {
+    return { ok: false, error: "El vídeo no fue recompensado." };
+  }
+
+  if (String(details.externalIdentifier || "") !== String(userId)) {
+    return { ok: false, error: "El usuario del vídeo no coincide." };
+  }
+
+  const conversionId = String(details.conversionId || "");
+  if (!conversionId || conversionId.length < 8) {
+    return { ok: false, error: "Falta conversionId del vídeo." };
+  }
+
+  if (AYET_API_KEY && details.signature) {
+    const customParts = ["custom_1", "custom_2", "custom_3", "custom_4", "custom_5"]
+      .map(key => details[key] ? String(details[key]) : "")
+      .join("");
+
+    const raw = String(details.externalIdentifier || "") +
+      String(details.currency || "") +
+      conversionId +
+      customParts;
+
+    const expected = crypto
+      .createHmac("sha1", AYET_API_KEY)
+      .update(raw)
+      .digest("hex");
+
+    if (String(details.signature) !== expected) {
+      return { ok: false, error: "Firma de ayeT no válida." };
+    }
+  }
+
+  return { ok: true, conversionId };
+}
+
 app.post("/api/register", authLimiter, (req, res) => {
   const db = loadDb();
 
@@ -397,6 +450,63 @@ app.get("/api/my-withdrawals", authUser, (req, res) => {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   res.json({ withdrawals });
+});
+
+app.get("/api/ayet/config", authUser, (req, res) => {
+  const configured = Boolean(AYET_PLACEMENT_ID && AYET_ADSLOT_NAME);
+
+  res.json({
+    configured,
+    placementId: configured ? Number(AYET_PLACEMENT_ID) : null,
+    adslotName: configured ? AYET_ADSLOT_NAME : "",
+    externalIdentifier: req.user.id,
+    optionalParameter: AYET_OPTIONAL_PARAMETER || "joelcashking",
+    requiredAdsPerReward: REQUIRED_ADS_PER_REWARD
+  });
+});
+
+app.post("/api/rewarded-ad/ayet-reward", authUser, (req, res) => {
+  const purpose = normalizeRewardPurpose(req.body.purpose);
+
+  if (!purpose) {
+    return res.status(400).json({ error: "Tipo de recompensa no válido." });
+  }
+
+  const details = req.body.details || {};
+  const verified = verifyAyetClientReward(details, req.user.id);
+
+  if (!verified.ok) {
+    return res.status(400).json({ error: verified.error });
+  }
+
+  req.db.rewardedVideoConversions = req.db.rewardedVideoConversions || {};
+
+  if (req.db.rewardedVideoConversions[verified.conversionId]) {
+    return res.status(409).json({
+      error: "Este vídeo ya fue registrado antes.",
+      conversionId: verified.conversionId
+    });
+  }
+
+  const daily = ensureDaily(req.user);
+  daily.rewardedAdProgress[purpose] = (daily.rewardedAdProgress[purpose] || 0) + 1;
+
+  incrementRewardedAdStats(req.user, purpose);
+
+  req.db.rewardedVideoConversions[verified.conversionId] = {
+    userId: req.user.id,
+    username: req.user.username,
+    purpose,
+    createdAt: new Date().toISOString()
+  };
+
+  saveDb(req.db);
+
+  res.json({
+    ok: true,
+    conversionId: verified.conversionId,
+    ...rewardedProgressPayload(daily, purpose)
+  });
 });
 
 app.post("/api/rewarded-ad/progress", authUser, (req, res) => {

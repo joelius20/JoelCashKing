@@ -242,3 +242,21 @@ Ahora:
 Limitación:
 - El proveedor de Vignette no confirma por callback real que el anuncio se haya visto.
 - Esto evita llamadas directas simples a la recompensa, pero no sustituye un postback oficial.
+
+
+## ayeT-Studios V18
+
+Flujo:
+1. Usuario pulsa botón de recompensa.
+2. Frontend pide config a `/api/ayet/config`.
+3. Se inicializa `AyetVideoSdk.init`.
+4. Se pide vídeo con `AyetVideoSdk.requestAd`.
+5. Se reproduce con `AyetVideoSdk.playFullsizeAd`.
+6. Cuando ayeT llama a `callbackRewarded`, se envía al backend.
+7. Backend valida y registra el vídeo.
+8. Al acumular 5 vídeos validados, se concede la recompensa.
+
+Recomendado:
+- Configurar `AYET_API_KEY` para verificar firma.
+- Añadir `ads.txt` de ayeT en `/ads.txt`.
+- Mantener fallback Vignette solo para pruebas.

@@ -88,3 +88,22 @@ Tokens disponibles:
 - `{{EMAIL}}`
 - `{{PUBLIC_URL}}`
 ```
+
+
+## Variables para ayeT-Studios Rewarded Video
+
+Añade en Railway:
+
+```env
+AYET_PLACEMENT_ID=TU_PLACEMENT_ID_NUMERICO
+AYET_ADSLOT_NAME=TU_REWARDED_VIDEO_ADSLOT_NAME
+AYET_OPTIONAL_PARAMETER=joelcashking
+AYET_API_KEY=TU_API_KEY_DE_AYET
+REQUIRED_ADS_PER_REWARD=5
+```
+
+En ayeT, usa:
+- Placement Type: Website
+- AdSlot Type: Rewarded Video
+
+Después redeploy.

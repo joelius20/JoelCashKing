@@ -1,6 +1,12 @@
-self.options = {
-    "domain": "5gvci.com",
-    "zoneId": 10950867
-}
-self.lary = ""
-importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw')
+const CACHE = "joelcashking-v18";
+const ASSETS = ["/", "/index.html", "/admin.html", "/styles.css", "/app.js", "/admin.js", "/manifest.json"];
+
+self.addEventListener("install", event => {
+  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)));
+});
+
+self.addEventListener("fetch", event => {
+  event.respondWith(
+    caches.match(event.request).then(cached => cached || fetch(event.request))
+  );
+});

@@ -55,7 +55,151 @@ function injectVignetteAdScript() {
   }, 60000);
 }
 
+let ayetConfigCache = null;
+let ayetInitializedUser = null;
+
+function isAyetAvailable() {
+  return typeof window.AyetVideoSdk !== "undefined";
+}
+
+async function getAyetConfig() {
+  if (ayetConfigCache) return ayetConfigCache;
+  ayetConfigCache = await api("/api/ayet/config");
+  return ayetConfigCache;
+}
+
+async function initAyetRewardedVideo() {
+  const config = await getAyetConfig();
+
+  if (!config.configured) {
+    throw new Error("ayeT-Studios no está configurado todavía. Añade AYET_PLACEMENT_ID y AYET_ADSLOT_NAME en Railway.");
+  }
+
+  if (!isAyetAvailable()) {
+    throw new Error("No se ha cargado el SDK de ayeT-Studios. Revisa bloqueadores de anuncios o la conexión.");
+  }
+
+  if (ayetInitializedUser === config.externalIdentifier) {
+    return config;
+  }
+
+  await AyetVideoSdk.init(
+    Number(config.placementId),
+    String(config.externalIdentifier),
+    config.optionalParameter || null
+  );
+
+  ayetInitializedUser = config.externalIdentifier;
+  return config;
+}
+
+function requestAyetAd(adslotName) {
+  return new Promise((resolve, reject) => {
+    AyetVideoSdk.requestAd(
+      adslotName,
+      () => resolve(true),
+      (msg) => reject(new Error(`ayeT no pudo cargar vídeo: ${msg}`))
+    );
+  });
+}
+
+function playAyetFullsizeAd() {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+
+    AyetVideoSdk.callbackError = function(e) {
+      if (!settled) {
+        settled = true;
+        reject(new Error(`Error de vídeo ayeT: ${JSON.stringify(e)}`));
+      }
+    };
+
+    AyetVideoSdk.callbackRewarded = function(details) {
+      if (!settled) {
+        settled = true;
+        resolve(details);
+      }
+    };
+
+    AyetVideoSdk.playFullsizeAd();
+
+    setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        reject(new Error("El vídeo tardó demasiado en recompensar. Prueba de nuevo."));
+      }
+    }, 120000);
+  });
+}
+
+async function showAyetRewardedVideo(message = "Mira el vídeo para recibir tu recompensa.", purpose = "coins") {
+  const config = await initAyetRewardedVideo();
+
+  showRewardedOverlay(message, 1, REQUIRED_ADS_PER_REWARD);
+  const text = document.getElementById("rewardedAdText");
+  if (text) text.textContent = "Preparando vídeo recompensado de ayeT-Studios...";
+
+  await requestAyetAd(config.adslotName);
+
+  if (text) text.textContent = "Reproduce el vídeo hasta el final para que cuente.";
+  removeRewardedOverlay();
+
+  const details = await playAyetFullsizeAd();
+
+  const progress = await api("/api/rewarded-ad/ayet-reward", {
+    method: "POST",
+    body: JSON.stringify({
+      purpose,
+      details
+    })
+  });
+
+  return progress;
+}
+
 async function showRewardedVignetteAd(message = "Se abrirán anuncios. La recompensa se aplica al completar todos.", purpose = "coins") {
+  try {
+    const config = await getAyetConfig();
+
+    if (config.configured) {
+      let lastProgress = null;
+
+      for (let adNumber = 1; adNumber <= REQUIRED_ADS_PER_REWARD; adNumber++) {
+        showRewardedOverlay(
+          `${message} Vídeo ${adNumber} de ${REQUIRED_ADS_PER_REWARD}.`,
+          adNumber,
+          REQUIRED_ADS_PER_REWARD
+        );
+
+        lastProgress = await showAyetRewardedVideo(
+          `${message} Vídeo ${adNumber} de ${REQUIRED_ADS_PER_REWARD}.`,
+          purpose
+        );
+
+        if (adNumber < REQUIRED_ADS_PER_REWARD) {
+          showRewardedOverlay("Vídeo validado en servidor. Preparando el siguiente...", adNumber, REQUIRED_ADS_PER_REWARD);
+          const textNext = document.getElementById("rewardedAdText");
+          if (textNext) {
+            textNext.textContent = `Progreso validado: ${lastProgress.progress}/${lastProgress.required}.`;
+          }
+          await sleep(1200);
+          removeRewardedOverlay();
+        }
+      }
+
+      removeRewardedOverlay();
+
+      if (!lastProgress || !lastProgress.ready) {
+        throw new Error("No se pudo validar el mínimo de vídeos recompensados.");
+      }
+
+      return true;
+    }
+  } catch (err) {
+    console.warn("Fallo ayeT, usando Vignette fallback:", err.message);
+  }
+
+  // Fallback: Vignette antiguo. Solo para pruebas si ayeT no está configurado o no hay fill.
   let lastProgress = null;
 
   for (let adNumber = 1; adNumber <= REQUIRED_ADS_PER_REWARD; adNumber++) {
