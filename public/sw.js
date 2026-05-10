@@ -1,4 +1,4 @@
-const CACHE = "joelcashking-v23";
+const CACHE = "joelcashking-v24";
 const STATIC_CACHE_ASSETS = [
   "/manifest.json"
 ];

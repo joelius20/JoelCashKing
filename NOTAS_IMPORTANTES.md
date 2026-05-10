@@ -342,3 +342,18 @@ Importante:
   - TX no se ha usado antes,
   - VAL es mayor que 0,
   - hash es válido si hay secret configurado.
+
+
+## Trabajos online V24
+
+La sección de trabajos online está pensada para tareas manuales revisadas por admin.
+
+Estados:
+- Pendiente
+- Aprobada
+- Rechazada
+- Completada
+
+Las coins solo se añaden una vez cuando el admin aprueba o completa la tarea.
+
+Esto evita pagar automáticamente tareas falsas.

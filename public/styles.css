@@ -1820,3 +1820,164 @@ input, select {
     height: 620px;
   }
 }
+
+
+.app-logo-img {
+  object-fit: cover;
+  border-radius: 16px;
+}
+
+.brand .app-logo-img,
+.brand-premium .app-logo-img {
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+}
+
+.tabs-eleven {
+  grid-template-columns: repeat(11, 1fr);
+}
+
+.tasks-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+.tasks-hero h2 {
+  margin: 10px 0 8px;
+  font-size: 32px;
+  letter-spacing: -.04em;
+}
+
+.tasks-hero p {
+  color: var(--muted);
+  margin-bottom: 0;
+}
+
+.tasks-icon {
+  width: 82px;
+  height: 82px;
+  display: grid;
+  place-items: center;
+  border-radius: 28px;
+  background: rgba(255, 209, 102, .13);
+  font-size: 44px;
+  flex: 0 0 82px;
+}
+
+.tasks-list,
+.task-submission-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.task-card {
+  padding: 16px;
+  border-radius: 24px;
+  border: 1px solid rgba(255,255,255,.09);
+  background: rgba(0,0,0,.16);
+}
+
+.task-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.task-icon {
+  width: 50px;
+  height: 50px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: rgba(255, 209, 102, .14);
+  font-size: 26px;
+  flex: 0 0 50px;
+}
+
+.task-card-head strong,
+.task-card-head span {
+  display: block;
+}
+
+.task-card-head span {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 3px;
+}
+
+.task-card p {
+  color: var(--muted);
+  margin: 12px 0;
+}
+
+.task-card small {
+  display: block;
+  color: var(--muted);
+  margin-top: 10px;
+}
+
+.task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.task-meta span {
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.08);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 16px;
+  background: rgba(0,0,0,.22);
+  color: var(--text);
+  padding: 12px 14px;
+  outline: none;
+  font: inherit;
+}
+
+.status-pill.approved,
+.status-pill.completed {
+  background: rgba(110, 231, 183, .14);
+  color: var(--accent);
+}
+
+.status-pill.rejected {
+  background: rgba(248, 113, 113, .14);
+  color: #fca5a5;
+}
+
+.status-pill.pending_review {
+  background: rgba(255, 209, 102, .14);
+  color: var(--gold);
+}
+
+@media (max-width: 560px) {
+  .tabs-eleven {
+    overflow-x: auto;
+    grid-template-columns: repeat(11, minmax(76px, 1fr));
+  }
+
+  .tasks-hero {
+    align-items: flex-start;
+  }
+
+  .tasks-icon {
+    width: 62px;
+    height: 62px;
+    border-radius: 22px;
+    font-size: 32px;
+    flex-basis: 62px;
+  }
+}

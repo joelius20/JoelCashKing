@@ -1,7 +1,7 @@
 {
   "name": "joelcashking-v2",
-  "version": "0.23.0",
-  "description": "JoelCashKing V23: integración BitLabs Offerwall con callback seguro.",
+  "version": "0.24.0",
+  "description": "JoelCashKing V24: logo en la web y trabajos online con recompensas revisadas por admin.",
   "main": "server.js",
   "scripts": {
     "dev": "node server.js",

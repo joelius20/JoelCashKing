@@ -15,7 +15,7 @@
       <header class="premium-landing">
         <nav class="landing-nav">
           <div class="brand brand-premium">
-            <div class="logo crown-logo">👑</div>
+            <img class="logo crown-logo app-logo-img" src="/assets/logo.png" alt="JoelCashKing logo">
             <div>
               <span>JoelCashKing</span>
               <small>Rewards · Games · Coins</small>
@@ -244,7 +244,7 @@
         </div>
       </section>
 
-      <nav class="tabs tabs-ten">
+      <nav class="tabs tabs-eleven">
         <button class="tab active" data-screen="home">Inicio</button>
         <button class="tab" data-screen="profile">Perfil</button>
         <button class="tab" data-screen="quiz">Quiz</button>
@@ -253,6 +253,7 @@
         <button class="tab" data-screen="surveys">Encuestas</button>
         <button class="tab" data-screen="bitlabs">BitLabs</button>
         <button class="tab" data-screen="directads">Direct Ads</button>
+        <button class="tab" data-screen="tasks">Trabajos</button>
         <button class="tab" data-screen="puzzle">Puzzle</button>
         <button class="tab" data-screen="shop">Tienda</button>
       </nav>
@@ -305,6 +306,11 @@
             <span>🧾</span>
             <h3>BitLabs</h3>
             <strong id="statBitLabs">0</strong>
+          </div>
+          <div class="mini-card">
+            <span>💼</span>
+            <h3>Trabajos</h3>
+            <strong id="statTasks">0</strong>
           </div>
         </article>
       </section>
@@ -546,6 +552,51 @@
           <button id="completePuzzleBtn" class="primary full">Completar puzzle +15 🪙</button>
           <button id="puzzleUnityAdBtn" class="secondary full hidden">Ver anuncio recompensado para desbloquear siguiente puzzle</button>
           <p id="puzzleMsg" class="status"></p>
+        </article>
+      </section>
+
+      <section id="tasks" class="screen">
+        <article class="card tasks-card">
+          <div class="tasks-hero">
+            <div>
+              <span class="badge">Trabajos online</span>
+              <h2>Tareas pagadas con recompensa</h2>
+              <p>
+                Completa pequeñas tareas online, envía una prueba y espera revisión manual.
+                Si la tarea se aprueba, recibirás las coins indicadas.
+              </p>
+            </div>
+            <div class="tasks-icon">💼</div>
+          </div>
+
+          <div class="notice">
+            Las tareas no se pagan automáticamente. El admin revisa la prueba para evitar abuso.
+          </div>
+
+          <div id="tasksList" class="tasks-list"></div>
+        </article>
+
+        <article class="card">
+          <h2>Enviar prueba de tarea</h2>
+          <label>Tarea</label>
+          <select id="taskSelect"></select>
+
+          <label>Explicación o prueba</label>
+          <textarea id="taskProofText" rows="4" placeholder="Explica qué hiciste o pega aquí la prueba de la tarea."></textarea>
+
+          <label>URL de prueba opcional</label>
+          <input id="taskProofUrl" placeholder="Ej: enlace a captura, perfil, publicación o prueba">
+
+          <button id="submitTaskBtn" class="primary full">Enviar tarea para revisión</button>
+          <p id="tasksMsg" class="status"></p>
+        </article>
+
+        <article class="card">
+          <div class="admin-head">
+            <h2>Mis tareas enviadas</h2>
+            <button id="refreshTasksBtn" class="small-button" type="button">Actualizar</button>
+          </div>
+          <div id="myTasksSubmissions" class="task-submission-list"></div>
         </article>
       </section>
 

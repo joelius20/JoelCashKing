@@ -482,6 +482,7 @@ function renderPrivate(user) {
   if ($("statPuzzles")) $("statPuzzles").textContent = user.stats.puzzlesCompleted || 0;
   if ($("statDirectAds")) $("statDirectAds").textContent = user.stats.directAdsCompleted || 0;
   if ($("statBitLabs")) $("statBitLabs").textContent = user.stats.bitlabsCompleted || 0;
+  if ($("statTasks")) $("statTasks").textContent = user.stats.tasksApproved || 0;
 
   if ($("profileUsername")) $("profileUsername").textContent = user.username;
   if ($("profileEmail")) $("profileEmail").textContent = user.email;
@@ -529,6 +530,7 @@ function showScreen(screenId) {
   if (screenId === "puzzle") renderPuzzle();
   if (screenId === "directads") loadDirectAdConfig();
   if (screenId === "bitlabs") resetBitlabsMessage();
+  if (screenId === "tasks") loadTasks();
   if (screenId === "surveys") resetOfferwallMessage();
 }
 
@@ -1155,6 +1157,121 @@ $("refreshProfileWithdrawals")?.addEventListener("click", async () => {
   await loadMyWithdrawals();
 });
 
+
+let availableTasks = [];
+
+function taskStatusLabel(status) {
+  const labels = {
+    pending_review: "Pendiente",
+    approved: "Aprobada",
+    rejected: "Rechazada",
+    completed: "Completada"
+  };
+  return labels[status] || status;
+}
+
+function renderTasksList(tasks) {
+  availableTasks = tasks || [];
+
+  const list = $("tasksList");
+  const select = $("taskSelect");
+
+  if (!list || !select) return;
+
+  if (!availableTasks.length) {
+    list.innerHTML = `<div class="withdrawal-empty">No hay tareas disponibles.</div>`;
+    select.innerHTML = "";
+    return;
+  }
+
+  list.innerHTML = availableTasks.map(task => `
+    <article class="task-card">
+      <div class="task-card-head">
+        <div class="task-icon">💼</div>
+        <div>
+          <strong>${task.title}</strong>
+          <span>${task.category} · ${task.estimatedTime}</span>
+        </div>
+      </div>
+      <p>${task.description}</p>
+      <div class="task-meta">
+        <span>+${task.rewardCoins} 🪙</span>
+        <span>${task.estimatedTime}</span>
+        <span>Revisión manual</span>
+      </div>
+      <small>${task.instructions}</small>
+    </article>
+  `).join("");
+
+  select.innerHTML = availableTasks.map(task => `
+    <option value="${task.id}">${task.title} · +${task.rewardCoins} coins</option>
+  `).join("");
+}
+
+function renderMyTaskSubmissions(submissions) {
+  const box = $("myTasksSubmissions");
+  if (!box) return;
+
+  if (!submissions || !submissions.length) {
+    box.innerHTML = `<div class="withdrawal-empty">Todavía no has enviado tareas.</div>`;
+    return;
+  }
+
+  box.innerHTML = submissions.map(item => `
+    <article class="withdrawal-item">
+      <div>
+        <strong>${item.taskTitle}</strong>
+        <span>${item.rewardCoins} coins · ${new Date(item.createdAt).toLocaleString()}</span>
+        <span>Estado: ${taskStatusLabel(item.status)}</span>
+        ${item.adminNote ? `<span>Nota admin: ${item.adminNote}</span>` : ""}
+      </div>
+      <span class="status-pill ${item.status}">${taskStatusLabel(item.status)}</span>
+    </article>
+  `).join("");
+}
+
+async function loadTasks() {
+  if (!token) return;
+
+  try {
+    const data = await api("/api/tasks");
+    renderTasksList(data.tasks);
+    renderMyTaskSubmissions(data.submissions);
+    if ($("tasksMsg") && !$("tasksMsg").textContent) {
+      $("tasksMsg").textContent = "Elige una tarea y envía una prueba cuando la completes.";
+    }
+  } catch (err) {
+    if ($("tasksMsg")) $("tasksMsg").textContent = err.message;
+  }
+}
+
+$("submitTaskBtn")?.addEventListener("click", async () => {
+  if (!requireLogin()) return;
+
+  try {
+    $("tasksMsg").textContent = "Enviando tarea para revisión...";
+
+    const data = await api("/api/tasks/submit", {
+      method: "POST",
+      body: JSON.stringify({
+        taskId: $("taskSelect").value,
+        proofText: $("taskProofText").value,
+        proofUrl: $("taskProofUrl").value
+      })
+    });
+
+    $("tasksMsg").textContent = `Tarea enviada: ${data.submission.taskTitle}. Estado: pendiente.`;
+    $("taskProofText").value = "";
+    $("taskProofUrl").value = "";
+
+    await loadTasks();
+    await refreshMe();
+  } catch (err) {
+    $("tasksMsg").textContent = err.message;
+  }
+});
+
+$("refreshTasksBtn")?.addEventListener("click", loadTasks);
 
 let bitlabsCurrentUrl = "";
 

@@ -111,6 +111,68 @@ function getDirectAdLink(linkId) {
   return links.find(link => link.id === cleanId) || null;
 }
 
+function getOnlineTasks() {
+  // Puedes editar estas tareas desde código o más adelante convertirlo en panel admin editable.
+  return [
+    {
+      id: "visit-web",
+      title: "Visitar una web y revisar contenido",
+      description: "Entra en la web indicada, navega durante unos minutos y envía una breve opinión.",
+      instructions: "Abre el enlace de la tarea, revisa la página y escribe una prueba con lo que has visto.",
+      rewardCoins: Number(process.env.TASK_VISIT_WEB_REWARD || 25),
+      estimatedTime: "3-5 min",
+      category: "Revisión web"
+    },
+    {
+      id: "survey-profile",
+      title: "Completar perfil de encuestas",
+      description: "Completa o actualiza tu perfil para recibir mejores encuestas.",
+      instructions: "Completa el perfil y envía una captura o explicación de la acción realizada.",
+      rewardCoins: Number(process.env.TASK_SURVEY_PROFILE_REWARD || 40),
+      estimatedTime: "5-8 min",
+      category: "Encuestas"
+    },
+    {
+      id: "social-feedback",
+      title: "Dar feedback sobre JoelCashKing",
+      description: "Prueba una sección de la app y explica qué mejorarías.",
+      instructions: "Usa la app durante unos minutos y escribe un feedback claro y útil.",
+      rewardCoins: Number(process.env.TASK_FEEDBACK_REWARD || 30),
+      estimatedTime: "4-6 min",
+      category: "Feedback"
+    },
+    {
+      id: "daily-check",
+      title: "Check diario de recompensas",
+      description: "Revisa si hay nuevas encuestas, Direct Ads o tareas disponibles.",
+      instructions: "Entra en las secciones de recompensas y confirma qué has revisado.",
+      rewardCoins: Number(process.env.TASK_DAILY_CHECK_REWARD || 10),
+      estimatedTime: "2 min",
+      category: "Diaria"
+    }
+  ];
+}
+
+function getOnlineTask(taskId) {
+  return getOnlineTasks().find(task => task.id === String(taskId || "")) || null;
+}
+
+function publicTaskSubmission(submission) {
+  return {
+    id: submission.id,
+    taskId: submission.taskId,
+    taskTitle: submission.taskTitle,
+    username: submission.username,
+    rewardCoins: submission.rewardCoins,
+    proofText: submission.proofText,
+    proofUrl: submission.proofUrl,
+    status: submission.status,
+    adminNote: submission.adminNote || "",
+    createdAt: submission.createdAt,
+    updatedAt: submission.updatedAt
+  };
+}
+
 function getFirstQuery(req, names, fallback = "") {
   for (const name of names) {
     const value = req.query[name];
@@ -261,6 +323,7 @@ function initialDb() {
     ayetS2SCallbacks: {},
     bitlabsCallbacks: {},
     bitlabsTransactions: {},
+    taskSubmissions: [],
     settings: {
       minWithdrawalCoins: 1000,
       coinRate: 1000,
@@ -313,6 +376,7 @@ function loadDb() {
   db.ayetS2SCallbacks = db.ayetS2SCallbacks || {};
   db.bitlabsCallbacks = db.bitlabsCallbacks || {};
   db.bitlabsTransactions = db.bitlabsTransactions || {};
+  db.taskSubmissions = db.taskSubmissions || [];
   db.settings = db.settings || initialDb().settings;
   return db;
 }
@@ -361,6 +425,9 @@ function publicUser(user, db) {
   user.stats.directAdsCompleted = user.stats.directAdsCompleted || 0;
   user.stats.bitlabsCompleted = user.stats.bitlabsCompleted || 0;
   user.stats.bitlabsCoins = user.stats.bitlabsCoins || 0;
+  user.stats.tasksSubmitted = user.stats.tasksSubmitted || 0;
+  user.stats.tasksApproved = user.stats.tasksApproved || 0;
+  user.stats.taskCoins = user.stats.taskCoins || 0;
 
   return {
     id: user.id,
@@ -671,7 +738,10 @@ app.post("/api/register", authLimiter, (req, res) => {
       puzzleUnityAdsWatched: 0,
       directAdsCompleted: 0,
       bitlabsCompleted: 0,
-      bitlabsCoins: 0
+      bitlabsCoins: 0,
+      tasksSubmitted: 0,
+      tasksApproved: 0,
+      taskCoins: 0
     },
     daily: {}
   };
@@ -773,6 +843,7 @@ app.get("/api/ayet/s2s-callback", (req, res) => {
   db.ayetS2SCallbacks = db.ayetS2SCallbacks || {};
   db.bitlabsCallbacks = db.bitlabsCallbacks || {};
   db.bitlabsTransactions = db.bitlabsTransactions || {};
+  db.taskSubmissions = db.taskSubmissions || [];
 
   const transactionId = getQueryValue(req.query, "transaction_id");
   const externalIdentifier = getQueryValue(req.query, "external_identifier");
@@ -1306,6 +1377,78 @@ app.post("/api/shop/withdraw-gift-card", withdrawLimiter, authUser, (req, res) =
 });
 
 
+app.get("/api/tasks", authUser, (req, res) => {
+  const submissions = (req.db.taskSubmissions || [])
+    .filter(item => item.userId === req.user.id)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .map(publicTaskSubmission);
+
+  res.json({
+    tasks: getOnlineTasks(),
+    submissions
+  });
+});
+
+app.post("/api/tasks/submit", authUser, (req, res) => {
+  const task = getOnlineTask(req.body.taskId);
+
+  if (!task) {
+    return res.status(400).json({ error: "Tarea no válida." });
+  }
+
+  const proofText = String(req.body.proofText || "").trim().slice(0, 1000);
+  const proofUrl = String(req.body.proofUrl || "").trim().slice(0, 300);
+
+  if (proofText.length < 10 && proofUrl.length < 8) {
+    return res.status(400).json({ error: "Añade una prueba o explicación de la tarea realizada." });
+  }
+
+  const recentDuplicate = (req.db.taskSubmissions || []).find(item =>
+    item.userId === req.user.id &&
+    item.taskId === task.id &&
+    ["pending_review", "approved"].includes(item.status)
+  );
+
+  if (recentDuplicate) {
+    return res.status(409).json({ error: "Ya tienes una solicitud pendiente o aprobada para esta tarea." });
+  }
+
+  const submission = {
+    id: uuidv4(),
+    taskId: task.id,
+    taskTitle: task.title,
+    userId: req.user.id,
+    username: req.user.username,
+    email: req.user.email,
+    rewardCoins: task.rewardCoins,
+    proofText,
+    proofUrl,
+    status: "pending_review",
+    adminNote: "",
+    credited: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
+  req.user.stats.tasksSubmitted = (req.user.stats.tasksSubmitted || 0) + 1;
+  req.db.taskSubmissions.push(submission);
+  saveDb(req.db);
+
+  res.json({
+    ok: true,
+    submission: publicTaskSubmission(submission)
+  });
+});
+
+app.get("/api/tasks/my-submissions", authUser, (req, res) => {
+  const submissions = (req.db.taskSubmissions || [])
+    .filter(item => item.userId === req.user.id)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .map(publicTaskSubmission);
+
+  res.json({ submissions });
+});
+
 app.get("/api/bitlabs/config", authUser, (req, res) => {
   if (!BITLABS_TOKEN) {
     return res.json({
@@ -1334,6 +1477,7 @@ app.get("/api/bitlabs/callback", (req, res) => {
   const db = loadDb();
   db.bitlabsCallbacks = db.bitlabsCallbacks || {};
   db.bitlabsTransactions = db.bitlabsTransactions || {};
+  db.taskSubmissions = db.taskSubmissions || [];
 
   const parsed = parseBitLabsReward(req);
   const logId = parsed.tx || crypto.randomUUID();
@@ -1650,6 +1794,54 @@ app.post("/api/puzzle/complete", authUser, (req, res) => {
     coins: req.user.coins,
     nextAvailableAt: now + twoMinutes,
     needsUnityAdForNext: true
+  });
+});
+
+app.get("/api/admin/task-submissions", authAdmin, (req, res) => {
+  const submissions = (req.db.taskSubmissions || [])
+    .slice()
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  res.json({ submissions });
+});
+
+app.post("/api/admin/task-submissions/:id/status", authAdmin, (req, res) => {
+  const submission = (req.db.taskSubmissions || []).find(item => item.id === req.params.id);
+
+  if (!submission) {
+    return res.status(404).json({ error: "Solicitud de tarea no encontrada." });
+  }
+
+  const status = String(req.body.status || "").trim();
+  const allowed = ["pending_review", "approved", "rejected", "completed"];
+
+  if (!allowed.includes(status)) {
+    return res.status(400).json({ error: "Estado no válido." });
+  }
+
+  const adminNote = String(req.body.adminNote || "").trim().slice(0, 500);
+  const user = req.db.users[submission.userId];
+
+  if ((status === "approved" || status === "completed") && !submission.credited) {
+    if (user) {
+      user.coins = (user.coins || 0) + submission.rewardCoins;
+      user.stats = user.stats || {};
+      user.stats.tasksApproved = (user.stats.tasksApproved || 0) + 1;
+      user.stats.taskCoins = (user.stats.taskCoins || 0) + submission.rewardCoins;
+      user.stats.coinsEarned = (user.stats.coinsEarned || 0) + submission.rewardCoins;
+      submission.credited = true;
+    }
+  }
+
+  submission.status = status;
+  submission.adminNote = adminNote;
+  submission.updatedAt = new Date().toISOString();
+
+  saveDb(req.db);
+
+  res.json({
+    ok: true,
+    submission
   });
 });
 

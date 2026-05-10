@@ -158,3 +158,36 @@ DIRECT_AD_LINK_2_COOLDOWN_SECONDS=180
 ```
 
 Puedes usar hasta `DIRECT_AD_LINK_10_URL`.
+
+
+## Variables BitLabs
+
+```env
+BITLABS_TOKEN=TU_TOKEN_DE_BITLABS
+BITLABS_APP_SECRET=TU_APP_SECRET_DE_BITLABS
+BITLABS_BASE_URL=https://web.bitlabs.ai/
+BITLABS_DEFAULT_REWARD_COINS=0
+BITLABS_MAX_REWARD_COINS=50000
+```
+
+Callback URL host:
+```text
+https://joelcashking-production.up.railway.app/api/bitlabs/callback
+```
+
+Parámetros recomendados:
+```text
+UID=[%USER:UID%]&TX=[%TX%]&VAL=[%VALUE:CURRENCY%]&RAW=[%VALUE:USD%]&TYPE=[%ACTIVITY:TYPE%]
+```
+
+
+## Variables trabajos online
+
+Opcionalmente puedes ajustar recompensas:
+
+```env
+TASK_VISIT_WEB_REWARD=25
+TASK_SURVEY_PROFILE_REWARD=40
+TASK_FEEDBACK_REWARD=30
+TASK_DAILY_CHECK_REWARD=10
+```
