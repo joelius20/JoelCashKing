@@ -1,7 +1,7 @@
 {
   "name": "joelcashking-v2",
-  "version": "0.22.0",
-  "description": "JoelCashKing V22: caché corregida para producción.",
+  "version": "0.23.0",
+  "description": "JoelCashKing V23: integración BitLabs Offerwall con callback seguro.",
   "main": "server.js",
   "scripts": {
     "dev": "node server.js",

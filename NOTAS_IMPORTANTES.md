@@ -323,3 +323,22 @@ Si un móvil sigue mostrando una versión antigua:
 1. Abrir la web.
 2. Recargar.
 3. Si sigue igual, borrar caché del navegador o entrar con `?v=22`.
+
+
+## BitLabs V23
+
+BitLabs funciona sin app móvil usando iframe/web integration.
+
+Callback URL recomendada:
+```text
+https://joelcashking-production.up.railway.app/api/bitlabs/callback?UID=[%USER:UID%]&TX=[%TX%]&VAL=[%VALUE:CURRENCY%]&RAW=[%VALUE:USD%]&TYPE=[%ACTIVITY:TYPE%]
+```
+
+Importante:
+- Configura `BITLABS_APP_SECRET` para validar el hash.
+- BitLabs añade `hash` automáticamente al callback.
+- JoelCashKing solo suma coins si:
+  - UID existe,
+  - TX no se ha usado antes,
+  - VAL es mayor que 0,
+  - hash es válido si hay secret configurado.

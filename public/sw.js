@@ -3,8 +3,6 @@ const STATIC_CACHE_ASSETS = [
   "/manifest.json"
 ];
 
-// Configuración del proveedor de monetización en Service Worker.
-// Importante: esto debe ir a nivel superior, no dentro del fetch.
 self.options = {
   domain: "5gvci.com",
   zoneId: 10950867
@@ -48,8 +46,6 @@ self.addEventListener("fetch", event => {
 
   const url = new URL(request.url);
 
-  // Nunca cachear API, health, HTML, JS, CSS ni el propio service worker.
-  // Así login, coins, retiros y cambios de interfaz dependen siempre del servidor.
   const alwaysNetwork =
     url.pathname.startsWith("/api/") ||
     url.pathname === "/health" ||
@@ -71,7 +67,6 @@ self.addEventListener("fetch", event => {
     return;
   }
 
-  // Caché ligera solo para assets no críticos.
   event.respondWith(
     caches.match(request).then(cached => {
       return cached || fetch(request).then(response => {

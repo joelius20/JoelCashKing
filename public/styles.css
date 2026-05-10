@@ -1364,7 +1364,7 @@ input, select {
 }
 
 
-.tabs-nine {
+.tabs-ten {
   grid-template-columns: repeat(8, 1fr);
 }
 
@@ -1477,7 +1477,7 @@ input, select {
 }
 
 @media (max-width: 560px) {
-  .tabs-nine {
+  .tabs-ten {
     overflow-x: auto;
     grid-template-columns: repeat(8, minmax(76px, 1fr));
   }
@@ -1591,7 +1591,7 @@ input, select {
 }
 
 
-.tabs-nine {
+.tabs-ten {
   grid-template-columns: repeat(9, 1fr);
 }
 
@@ -1649,7 +1649,7 @@ input, select {
 }
 
 @media (max-width: 560px) {
-  .tabs-nine {
+  .tabs-ten {
     overflow-x: auto;
     grid-template-columns: repeat(9, minmax(76px, 1fr));
   }
@@ -1740,4 +1740,83 @@ input, select {
 
 .direct-ad-claim-box p {
   margin: 5px 0 0;
+}
+
+
+.tabs-ten {
+  grid-template-columns: repeat(10, 1fr);
+}
+
+.bitlabs-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+.bitlabs-hero h2 {
+  margin: 10px 0 8px;
+  font-size: 32px;
+  letter-spacing: -.04em;
+}
+
+.bitlabs-hero p {
+  color: var(--muted);
+  margin-bottom: 0;
+}
+
+.bitlabs-icon {
+  width: 82px;
+  height: 82px;
+  display: grid;
+  place-items: center;
+  border-radius: 28px;
+  background: rgba(110, 231, 183, .13);
+  font-size: 44px;
+  flex: 0 0 82px;
+}
+
+.bitlabs-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.bitlabs-box {
+  margin-top: 16px;
+  overflow: hidden;
+  border-radius: 24px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(0,0,0,.18);
+}
+
+.bitlabs-box iframe {
+  display: block;
+  width: 100%;
+  height: 720px;
+  border: 0;
+  background: white;
+}
+
+@media (max-width: 560px) {
+  .tabs-ten {
+    overflow-x: auto;
+    grid-template-columns: repeat(10, minmax(76px, 1fr));
+  }
+
+  .bitlabs-hero {
+    align-items: flex-start;
+  }
+
+  .bitlabs-icon {
+    width: 62px;
+    height: 62px;
+    border-radius: 22px;
+    font-size: 32px;
+    flex-basis: 62px;
+  }
+
+  .bitlabs-box iframe {
+    height: 620px;
+  }
 }

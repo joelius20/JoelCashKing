@@ -244,13 +244,14 @@
         </div>
       </section>
 
-      <nav class="tabs tabs-nine">
+      <nav class="tabs tabs-ten">
         <button class="tab active" data-screen="home">Inicio</button>
         <button class="tab" data-screen="profile">Perfil</button>
         <button class="tab" data-screen="quiz">Quiz</button>
         <button class="tab" data-screen="wordsearch">Sopa</button>
         <button class="tab" data-screen="roulette">Ruleta</button>
         <button class="tab" data-screen="surveys">Encuestas</button>
+        <button class="tab" data-screen="bitlabs">BitLabs</button>
         <button class="tab" data-screen="directads">Direct Ads</button>
         <button class="tab" data-screen="puzzle">Puzzle</button>
         <button class="tab" data-screen="shop">Tienda</button>
@@ -299,6 +300,11 @@
             <span>🔗</span>
             <h3>Direct Ads</h3>
             <strong id="statDirectAds">0</strong>
+          </div>
+          <div class="mini-card">
+            <span>🧾</span>
+            <h3>BitLabs</h3>
+            <strong id="statBitLabs">0</strong>
           </div>
         </article>
       </section>
@@ -433,6 +439,38 @@
 
           <div id="offerwallBox" class="offerwall-box hidden">
             <iframe id="offerwallFrame" title="Offerwall de encuestas"></iframe>
+          </div>
+        </article>
+      </section>
+
+      <section id="bitlabs" class="screen">
+        <article class="card bitlabs-card">
+          <div class="bitlabs-hero">
+            <div>
+              <span class="badge">BitLabs</span>
+              <h2>Encuestas recompensadas</h2>
+              <p>
+                Completa encuestas y ofertas de BitLabs. Cuando BitLabs confirme una conversión,
+                JoelCashKing añadirá las coins automáticamente mediante callback seguro.
+              </p>
+            </div>
+            <div class="bitlabs-icon">🧾</div>
+          </div>
+
+          <div class="notice">
+            Las recompensas reales dependen del callback/postback de BitLabs. Si no llega callback,
+            no se suman coins automáticamente.
+          </div>
+
+          <div class="bitlabs-actions">
+            <button id="loadBitlabsBtn" class="primary full">Abrir BitLabs</button>
+            <button id="openBitlabsNewTabBtn" class="secondary full hidden">Abrir en nueva pestaña</button>
+          </div>
+
+          <p id="bitlabsMsg" class="status"></p>
+
+          <div id="bitlabsBox" class="bitlabs-box hidden">
+            <iframe id="bitlabsFrame" title="BitLabs Offerwall"></iframe>
           </div>
         </article>
       </section>

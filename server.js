@@ -47,6 +47,12 @@ const DIRECT_AD_WAIT_SECONDS = Number(process.env.DIRECT_AD_WAIT_SECONDS || 30);
 const DIRECT_AD_COOLDOWN_SECONDS = Number(process.env.DIRECT_AD_COOLDOWN_SECONDS || 180);
 const DIRECT_AD_REWARD_COINS = Number(process.env.DIRECT_AD_REWARD_COINS || 5);
 
+const BITLABS_TOKEN = process.env.BITLABS_TOKEN || process.env.BITLABS_API_TOKEN || "";
+const BITLABS_APP_SECRET = process.env.BITLABS_APP_SECRET || "";
+const BITLABS_BASE_URL = process.env.BITLABS_BASE_URL || "https://web.bitlabs.ai/";
+const BITLABS_DEFAULT_REWARD_COINS = Number(process.env.BITLABS_DEFAULT_REWARD_COINS || 0);
+const BITLABS_MAX_REWARD_COINS = Number(process.env.BITLABS_MAX_REWARD_COINS || 50000);
+
 function sanitizeDirectAdId(value) {
   return String(value || "")
     .trim()
@@ -103,6 +109,71 @@ function getDirectAdLink(linkId) {
   const links = getDirectAdLinks();
   const cleanId = sanitizeDirectAdId(linkId) || (links[0] && links[0].id);
   return links.find(link => link.id === cleanId) || null;
+}
+
+function getFirstQuery(req, names, fallback = "") {
+  for (const name of names) {
+    const value = req.query[name];
+    if (value !== undefined && value !== null && value !== "") {
+      return Array.isArray(value) ? String(value[0] || "") : String(value);
+    }
+  }
+  return fallback;
+}
+
+function buildPublicCallbackUrl(req) {
+  if (PUBLIC_URL) return `${PUBLIC_URL.replace(/\/$/, "")}${req.originalUrl}`;
+  const proto = req.get("x-forwarded-proto") || req.protocol || "https";
+  const host = req.get("host");
+  return `${proto}://${host}${req.originalUrl}`;
+}
+
+function verifyBitLabsHash(req) {
+  if (!BITLABS_APP_SECRET) return { ok: true, skipped: true };
+
+  const hash = getFirstQuery(req, ["hash"], "");
+  if (!hash) return { ok: false, error: "Falta hash de BitLabs." };
+
+  const fullUrl = buildPublicCallbackUrl(req);
+  let unsignedUrl = fullUrl;
+  if (fullUrl.includes("&hash=")) unsignedUrl = fullUrl.split("&hash=")[0];
+  else if (fullUrl.includes("?hash=")) unsignedUrl = fullUrl.split("?hash=")[0];
+  else return { ok: false, error: "No se pudo separar el hash de la URL." };
+
+  const expected = crypto.createHmac("sha1", BITLABS_APP_SECRET).update(unsignedUrl).digest("hex");
+
+  try {
+    const a = Buffer.from(String(hash), "hex");
+    const b = Buffer.from(String(expected), "hex");
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+      return { ok: false, error: "Hash de BitLabs no válido." };
+    }
+  } catch {
+    return { ok: false, error: "Hash de BitLabs con formato inválido." };
+  }
+
+  return { ok: true };
+}
+
+function parseBitLabsReward(req) {
+  const uid = getFirstQuery(req, ["UID", "uid", "user_id", "userId", "player_id", "subId"]);
+  const tx = getFirstQuery(req, ["TX", "TXID", "tx", "txid", "transaction_id", "transactionId", "REF", "ref"]);
+  const val = getFirstQuery(req, ["VAL", "val", "amount", "currency_amount", "reward", "points"]);
+  const raw = getFirstQuery(req, ["RAW", "raw", "USD", "usd", "payout"]);
+  const type = getFirstQuery(req, ["TYPE", "type", "activity_type", "state"], "COMPLETE");
+  const offerId = getFirstQuery(req, ["OFFER_ID", "offer_id", "SURVEY_ID", "survey_id"]);
+  const offerName = getFirstQuery(req, ["OFFER_NAME", "offer_name", "goal_name"]);
+
+  const rewardNumber = Number(val || BITLABS_DEFAULT_REWARD_COINS || 0);
+  const rewardCoins = Math.max(0, Math.min(Math.floor(rewardNumber), BITLABS_MAX_REWARD_COINS));
+
+  return { uid, tx, val, raw, type, offerId, offerName, rewardCoins };
+}
+
+function isBitLabsRewardableType(type) {
+  const clean = String(type || "").toUpperCase();
+  if (!clean) return true;
+  return ["COMPLETE", "COMPLETED", "START_BONUS", "PENDING", "NONE"].includes(clean);
 }
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
@@ -188,6 +259,8 @@ function initialDb() {
     withdrawals: [],
     rewardedVideoConversions: {},
     ayetS2SCallbacks: {},
+    bitlabsCallbacks: {},
+    bitlabsTransactions: {},
     settings: {
       minWithdrawalCoins: 1000,
       coinRate: 1000,
@@ -211,6 +284,8 @@ app.get("/health", (req, res) => {
     directAdRewardCoins: DIRECT_AD_REWARD_COINS,
     directAdWaitSeconds: DIRECT_AD_WAIT_SECONDS,
     directAdCooldownSeconds: DIRECT_AD_COOLDOWN_SECONDS,
+    bitlabsConfigured: Boolean(BITLABS_TOKEN),
+    bitlabsCallbackUrl: PUBLIC_URL ? `${PUBLIC_URL}/api/bitlabs/callback` : null,
     time: new Date().toISOString()
   });
 });
@@ -236,6 +311,8 @@ function loadDb() {
   db.withdrawals = db.withdrawals || [];
   db.rewardedVideoConversions = db.rewardedVideoConversions || {};
   db.ayetS2SCallbacks = db.ayetS2SCallbacks || {};
+  db.bitlabsCallbacks = db.bitlabsCallbacks || {};
+  db.bitlabsTransactions = db.bitlabsTransactions || {};
   db.settings = db.settings || initialDb().settings;
   return db;
 }
@@ -282,6 +359,8 @@ function publicUser(user, db) {
   user.stats.puzzlesCompleted = user.stats.puzzlesCompleted || 0;
   user.stats.puzzleUnityAdsWatched = user.stats.puzzleUnityAdsWatched || 0;
   user.stats.directAdsCompleted = user.stats.directAdsCompleted || 0;
+  user.stats.bitlabsCompleted = user.stats.bitlabsCompleted || 0;
+  user.stats.bitlabsCoins = user.stats.bitlabsCoins || 0;
 
   return {
     id: user.id,
@@ -590,7 +669,9 @@ app.post("/api/register", authLimiter, (req, res) => {
       withdrawalsRequested: 0,
       puzzlesCompleted: 0,
       puzzleUnityAdsWatched: 0,
-      directAdsCompleted: 0
+      directAdsCompleted: 0,
+      bitlabsCompleted: 0,
+      bitlabsCoins: 0
     },
     daily: {}
   };
@@ -690,6 +771,8 @@ app.get("/api/rewarded-ad/status", authUser, (req, res) => {
 app.get("/api/ayet/s2s-callback", (req, res) => {
   const db = loadDb();
   db.ayetS2SCallbacks = db.ayetS2SCallbacks || {};
+  db.bitlabsCallbacks = db.bitlabsCallbacks || {};
+  db.bitlabsTransactions = db.bitlabsTransactions || {};
 
   const transactionId = getQueryValue(req.query, "transaction_id");
   const externalIdentifier = getQueryValue(req.query, "external_identifier");
@@ -1222,6 +1305,121 @@ app.post("/api/shop/withdraw-gift-card", withdrawLimiter, authUser, (req, res) =
   });
 });
 
+
+app.get("/api/bitlabs/config", authUser, (req, res) => {
+  if (!BITLABS_TOKEN) {
+    return res.json({
+      configured: false,
+      url: "",
+      message: "BitLabs no está configurado. Añade BITLABS_TOKEN en Railway."
+    });
+  }
+
+  const params = new URLSearchParams({
+    uid: req.user.id,
+    token: BITLABS_TOKEN,
+    source: "joelcashking",
+    username: req.user.username
+  });
+
+  res.json({
+    configured: true,
+    url: `${BITLABS_BASE_URL}?${params.toString()}`,
+    uid: req.user.id,
+    callbackUrl: PUBLIC_URL ? `${PUBLIC_URL}/api/bitlabs/callback` : ""
+  });
+});
+
+app.get("/api/bitlabs/callback", (req, res) => {
+  const db = loadDb();
+  db.bitlabsCallbacks = db.bitlabsCallbacks || {};
+  db.bitlabsTransactions = db.bitlabsTransactions || {};
+
+  const parsed = parseBitLabsReward(req);
+  const logId = parsed.tx || crypto.randomUUID();
+  const log = { receivedAt: new Date().toISOString(), query: req.query, parsed };
+  db.bitlabsCallbacks[logId] = log;
+
+  const hashCheck = verifyBitLabsHash(req);
+  if (!hashCheck.ok) {
+    log.status = "rejected_hash";
+    log.error = hashCheck.error;
+    saveDb(db);
+    return res.status(200).json({ ok: false, error: hashCheck.error });
+  }
+
+  if (!parsed.uid || !parsed.tx) {
+    log.status = "rejected_missing_params";
+    log.error = "Falta UID o TX.";
+    saveDb(db);
+    return res.status(200).json({ ok: false, error: "Falta UID o TX." });
+  }
+
+  const user = Object.values(db.users || {}).find(item =>
+    String(item.id) === String(parsed.uid) ||
+    String(item.username) === String(parsed.uid) ||
+    String(item.email) === String(parsed.uid)
+  );
+
+  if (!user) {
+    log.status = "rejected_user_not_found";
+    log.error = "Usuario no encontrado.";
+    saveDb(db);
+    return res.status(200).json({ ok: false, error: "Usuario no encontrado." });
+  }
+
+  if (db.bitlabsTransactions[parsed.tx]) {
+    log.status = "duplicate";
+    log.userId = user.id;
+    saveDb(db);
+    return res.status(200).json({ ok: true, duplicate: true });
+  }
+
+  if (!isBitLabsRewardableType(parsed.type)) {
+    log.status = "ignored_type";
+    log.userId = user.id;
+    saveDb(db);
+    return res.status(200).json({ ok: true, ignored: true, type: parsed.type });
+  }
+
+  if (parsed.rewardCoins <= 0) {
+    log.status = "ignored_zero_reward";
+    log.userId = user.id;
+    saveDb(db);
+    return res.status(200).json({ ok: true, ignored: true, rewardCoins: 0 });
+  }
+
+  user.stats = user.stats || {};
+  user.stats.bitlabsCompleted = (user.stats.bitlabsCompleted || 0) + 1;
+  user.stats.bitlabsCoins = (user.stats.bitlabsCoins || 0) + parsed.rewardCoins;
+  user.stats.coinsEarned = (user.stats.coinsEarned || 0) + parsed.rewardCoins;
+  user.coins = (user.coins || 0) + parsed.rewardCoins;
+
+  db.bitlabsTransactions[parsed.tx] = {
+    userId: user.id,
+    username: user.username,
+    tx: parsed.tx,
+    rewardCoins: parsed.rewardCoins,
+    type: parsed.type,
+    offerId: parsed.offerId,
+    offerName: parsed.offerName,
+    raw: parsed.raw,
+    createdAt: new Date().toISOString()
+  };
+
+  log.status = "credited";
+  log.userId = user.id;
+  log.rewardCoins = parsed.rewardCoins;
+  saveDb(db);
+
+  return res.status(200).json({
+    ok: true,
+    credited: true,
+    uid: user.id,
+    tx: parsed.tx,
+    rewardCoins: parsed.rewardCoins
+  });
+});
 
 app.get("/api/direct-ad/config", authUser, (req, res) => {
   const daily = ensureDaily(req.user);

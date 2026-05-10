@@ -481,6 +481,7 @@ function renderPrivate(user) {
   $("statAds").textContent = totalAds;
   if ($("statPuzzles")) $("statPuzzles").textContent = user.stats.puzzlesCompleted || 0;
   if ($("statDirectAds")) $("statDirectAds").textContent = user.stats.directAdsCompleted || 0;
+  if ($("statBitLabs")) $("statBitLabs").textContent = user.stats.bitlabsCompleted || 0;
 
   if ($("profileUsername")) $("profileUsername").textContent = user.username;
   if ($("profileEmail")) $("profileEmail").textContent = user.email;
@@ -527,6 +528,7 @@ function showScreen(screenId) {
   if (screenId === "shop" || screenId === "profile") loadMyWithdrawals();
   if (screenId === "puzzle") renderPuzzle();
   if (screenId === "directads") loadDirectAdConfig();
+  if (screenId === "bitlabs") resetBitlabsMessage();
   if (screenId === "surveys") resetOfferwallMessage();
 }
 
@@ -1153,6 +1155,43 @@ $("refreshProfileWithdrawals")?.addEventListener("click", async () => {
   await loadMyWithdrawals();
 });
 
+
+let bitlabsCurrentUrl = "";
+
+function resetBitlabsMessage() {
+  if ($("bitlabsMsg") && !$("bitlabsMsg").textContent) {
+    $("bitlabsMsg").textContent = "Pulsa el botón para cargar BitLabs.";
+  }
+}
+
+$("loadBitlabsBtn")?.addEventListener("click", async () => {
+  if (!requireLogin()) return;
+
+  try {
+    $("bitlabsMsg").textContent = "Cargando BitLabs...";
+    const data = await api("/api/bitlabs/config");
+
+    if (!data.configured) {
+      $("bitlabsBox").classList.add("hidden");
+      $("openBitlabsNewTabBtn").classList.add("hidden");
+      $("bitlabsMsg").textContent = data.message || "BitLabs no está configurado todavía.";
+      return;
+    }
+
+    bitlabsCurrentUrl = data.url;
+    $("bitlabsFrame").src = data.url;
+    $("bitlabsBox").classList.remove("hidden");
+    $("openBitlabsNewTabBtn").classList.remove("hidden");
+    $("bitlabsMsg").textContent = "BitLabs cargado. Las coins se sumarán cuando llegue el callback.";
+  } catch (err) {
+    $("bitlabsMsg").textContent = err.message;
+  }
+});
+
+$("openBitlabsNewTabBtn")?.addEventListener("click", () => {
+  if (!bitlabsCurrentUrl) return;
+  window.open(bitlabsCurrentUrl, "_blank", "noopener,noreferrer");
+});
 
 let directAdWaitTimer = null;
 let directAdCooldownTimer = null;
