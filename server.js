@@ -1797,16 +1797,21 @@ app.post("/api/puzzle/complete", authUser, (req, res) => {
   });
 });
 
-app.get("/api/admin/task-submissions", authAdmin, (req, res) => {
-  const submissions = (req.db.taskSubmissions || [])
+app.get("/api/admin/task-submissions", adminOnly, (req, res) => {
+  const db = loadDb();
+
+  const submissions = (db.taskSubmissions || [])
     .slice()
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   res.json({ submissions });
 });
 
-app.post("/api/admin/task-submissions/:id/status", authAdmin, (req, res) => {
-  const submission = (req.db.taskSubmissions || []).find(item => item.id === req.params.id);
+app.post("/api/admin/task-submissions/:id/status", adminOnly, (req, res) => {
+  const db = loadDb();
+  db.taskSubmissions = db.taskSubmissions || [];
+
+  const submission = db.taskSubmissions.find(item => item.id === req.params.id);
 
   if (!submission) {
     return res.status(404).json({ error: "Solicitud de tarea no encontrada." });
@@ -1820,7 +1825,7 @@ app.post("/api/admin/task-submissions/:id/status", authAdmin, (req, res) => {
   }
 
   const adminNote = String(req.body.adminNote || "").trim().slice(0, 500);
-  const user = req.db.users[submission.userId];
+  const user = db.users[submission.userId];
 
   if ((status === "approved" || status === "completed") && !submission.credited) {
     if (user) {
@@ -1837,7 +1842,7 @@ app.post("/api/admin/task-submissions/:id/status", authAdmin, (req, res) => {
   submission.adminNote = adminNote;
   submission.updatedAt = new Date().toISOString();
 
-  saveDb(req.db);
+  saveDb(db);
 
   res.json({
     ok: true,

@@ -357,3 +357,12 @@ Estados:
 Las coins solo se añaden una vez cuando el admin aprueba o completa la tarea.
 
 Esto evita pagar automáticamente tareas falsas.
+
+
+## Fix V24.1
+
+Railway fallaba al iniciar porque las rutas nuevas de trabajos usaban `authAdmin`, pero el middleware real del proyecto se llama `adminOnly`.
+
+Solución:
+- `authAdmin` -> `adminOnly`
+- Las rutas cargan DB con `loadDb()`.

@@ -199,6 +199,8 @@ $("saveAdminKey").addEventListener("click", async () => {
   }
 });
 
+$("refreshTaskSubmissions")?.addEventListener("click", loadTaskSubmissions);
+
 $("refreshAdmin").addEventListener("click", async () => {
   try {
     await loadDashboard();

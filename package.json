@@ -1,7 +1,7 @@
 {
   "name": "joelcashking-v2",
-  "version": "0.24.0",
-  "description": "JoelCashKing V24: logo en la web y trabajos online con recompensas revisadas por admin.",
+  "version": "0.24.1",
+  "description": "JoelCashKing V24.1: corrección admin de trabajos online.",
   "main": "server.js",
   "scripts": {
     "dev": "node server.js",
