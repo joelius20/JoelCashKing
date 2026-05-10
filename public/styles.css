@@ -1981,3 +1981,31 @@ textarea {
     flex-basis: 62px;
   }
 }
+
+
+.admin-task-form {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.checkline {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.checkline input {
+  width: auto;
+}
+
+input[type="file"] {
+  width: 100%;
+  border: 1px dashed rgba(255,255,255,.18);
+  border-radius: 16px;
+  padding: 12px;
+  color: var(--muted);
+  background: rgba(0,0,0,.14);
+}

@@ -48,6 +48,43 @@
 
       <section class="card">
         <div class="admin-head">
+          <h2>Crear trabajos online</h2>
+          <button id="refreshAdminTasks" class="small-button" type="button">Actualizar trabajos</button>
+        </div>
+
+        <div id="adminCreateTaskForm" class="admin-task-form">
+          <label>Título del trabajo</label>
+          <input id="adminTaskTitle" placeholder="Ej: Revisar una web y enviar captura">
+
+          <label>Categoría</label>
+          <input id="adminTaskCategory" placeholder="Ej: Revisión web">
+
+          <label>Recompensa en coins</label>
+          <input id="adminTaskReward" type="number" min="1" value="25">
+
+          <label>Tiempo estimado</label>
+          <input id="adminTaskTime" placeholder="Ej: 3-5 min">
+
+          <label>Descripción</label>
+          <textarea id="adminTaskDescription" rows="3" placeholder="Explica qué debe hacer el usuario."></textarea>
+
+          <label>Instrucciones</label>
+          <textarea id="adminTaskInstructions" rows="4" placeholder="Pasos concretos para completar la tarea."></textarea>
+
+          <label class="checkline">
+            <input id="adminTaskFileRequired" type="checkbox">
+            Requerir archivo de prueba PDF/PNG/JPG
+          </label>
+
+          <button id="createAdminTaskBtn" class="primary full" type="button">Crear trabajo</button>
+          <p id="adminTasksMsg" class="status"></p>
+        </div>
+
+        <div id="adminTasksList" class="admin-list"></div>
+      </section>
+
+      <section class="card">
+        <div class="admin-head">
           <h2>Trabajos online enviados</h2>
           <button id="refreshTaskSubmissions" class="small-button" type="button">Actualizar trabajos</button>
         </div>

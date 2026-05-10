@@ -1198,6 +1198,7 @@ function renderTasksList(tasks) {
         <span>+${task.rewardCoins} 🪙</span>
         <span>${task.estimatedTime}</span>
         <span>Revisión manual</span>
+        ${task.proofFileRequired ? "<span>Archivo obligatorio</span>" : ""}
       </div>
       <small>${task.instructions}</small>
     </article>
@@ -1223,6 +1224,7 @@ function renderMyTaskSubmissions(submissions) {
         <strong>${item.taskTitle}</strong>
         <span>${item.rewardCoins} coins · ${new Date(item.createdAt).toLocaleString()}</span>
         <span>Estado: ${taskStatusLabel(item.status)}</span>
+        ${item.proofFile ? `<span>Archivo: ${item.proofFile.originalName}</span>` : ""}
         ${item.adminNote ? `<span>Nota admin: ${item.adminNote}</span>` : ""}
       </div>
       <span class="status-pill ${item.status}">${taskStatusLabel(item.status)}</span>
@@ -1245,6 +1247,42 @@ async function loadTasks() {
   }
 }
 
+function readTaskProofFile() {
+  return new Promise((resolve, reject) => {
+    const input = $("taskProofFile");
+
+    if (!input || !input.files || !input.files[0]) {
+      resolve(null);
+      return;
+    }
+
+    const file = input.files[0];
+    const allowed = ["application/pdf", "image/png", "image/jpeg"];
+
+    if (!allowed.includes(file.type)) {
+      reject(new Error("Archivo no permitido. Usa PDF, PNG, JPG o JPEG."));
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      reject(new Error("El archivo supera 5 MB."));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      resolve({
+        name: file.name,
+        mimeType: file.type,
+        sizeBytes: file.size,
+        data: reader.result
+      });
+    };
+    reader.onerror = () => reject(new Error("No se pudo leer el archivo."));
+    reader.readAsDataURL(file);
+  });
+}
+
 $("submitTaskBtn")?.addEventListener("click", async () => {
   if (!requireLogin()) return;
 
@@ -1256,13 +1294,15 @@ $("submitTaskBtn")?.addEventListener("click", async () => {
       body: JSON.stringify({
         taskId: $("taskSelect").value,
         proofText: $("taskProofText").value,
-        proofUrl: $("taskProofUrl").value
+        proofUrl: $("taskProofUrl").value,
+        proofFile: await readTaskProofFile()
       })
     });
 
     $("tasksMsg").textContent = `Tarea enviada: ${data.submission.taskTitle}. Estado: pendiente.`;
     $("taskProofText").value = "";
     $("taskProofUrl").value = "";
+    if ($("taskProofFile")) $("taskProofFile").value = "";
 
     await loadTasks();
     await refreshMe();

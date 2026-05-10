@@ -57,6 +57,104 @@ function taskStatusLabel(status) {
   return labels[status] || status;
 }
 
+async function loadAdminTasks() {
+  if (!adminKey) return;
+
+  try {
+    const data = await adminApi("/api/admin/tasks");
+    const list = $("adminTasksList");
+
+    if (!list) return;
+
+    if (!data.tasks.length) {
+      list.innerHTML = `<div class="withdrawal-empty">No hay trabajos creados.</div>`;
+      return;
+    }
+
+    list.innerHTML = data.tasks.map(task => `
+      <article class="admin-item">
+        <div>
+          <strong>${task.title}</strong>
+          <span>ID: ${task.id}</span>
+          <span>Categoría: ${task.category || "General"} · ${task.estimatedTime || ""}</span>
+          <span>Recompensa: ${task.rewardCoins} coins</span>
+          <span>Archivo requerido: ${task.proofFileRequired ? "Sí" : "No"}</span>
+          <span>Estado: ${task.isActive ? "Activo" : "Oculto"}</span>
+          <span>${task.description || ""}</span>
+        </div>
+
+        <div class="admin-actions">
+          <button onclick="toggleAdminTask('${task.id}', ${task.isActive ? "false" : "true"})">
+            ${task.isActive ? "Ocultar" : "Activar"}
+          </button>
+          <button onclick="deleteAdminTask('${task.id}')">Eliminar</button>
+        </div>
+      </article>
+    `).join("");
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function createAdminTask() {
+  try {
+    const payload = {
+      title: $("adminTaskTitle").value,
+      category: $("adminTaskCategory").value,
+      rewardCoins: Number($("adminTaskReward").value || 0),
+      estimatedTime: $("adminTaskTime").value,
+      description: $("adminTaskDescription").value,
+      instructions: $("adminTaskInstructions").value,
+      proofFileRequired: $("adminTaskFileRequired").checked,
+      isActive: true
+    };
+
+    await adminApi("/api/admin/tasks", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+
+    $("adminTasksMsg").textContent = "Trabajo creado correctamente.";
+    $("adminTaskTitle").value = "";
+    $("adminTaskCategory").value = "";
+    $("adminTaskReward").value = "25";
+    $("adminTaskTime").value = "";
+    $("adminTaskDescription").value = "";
+    $("adminTaskInstructions").value = "";
+    $("adminTaskFileRequired").checked = false;
+
+    await loadAdminTasks();
+    await loadStats();
+  } catch (err) {
+    $("adminTasksMsg").textContent = err.message;
+  }
+}
+
+async function toggleAdminTask(id, isActive) {
+  try {
+    await adminApi(`/api/admin/tasks/${id}`, {
+      method: "POST",
+      body: JSON.stringify({ isActive })
+    });
+    await loadAdminTasks();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
+async function deleteAdminTask(id) {
+  if (!confirm("¿Eliminar este trabajo?")) return;
+
+  try {
+    await adminApi(`/api/admin/tasks/${id}`, {
+      method: "DELETE"
+    });
+    await loadAdminTasks();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+
 async function loadTaskSubmissions() {
   if (!adminKey) return;
 
@@ -80,6 +178,7 @@ async function loadTaskSubmissions() {
           <span>Estado: ${taskStatusLabel(item.status)}</span>
           <span>Prueba: ${item.proofText || "Sin texto"}</span>
           ${item.proofUrl ? `<span>URL: <a href="${item.proofUrl}" target="_blank" rel="noopener">Abrir prueba</a></span>` : ""}
+          ${item.proofFile ? `<span>Archivo: <a href="${item.proofFile.url}" target="_blank" rel="noopener">${item.proofFile.originalName}</a></span>` : ""}
           ${item.adminNote ? `<span>Nota admin: ${item.adminNote}</span>` : ""}
           <span>Fecha: ${new Date(item.createdAt).toLocaleString()}</span>
         </div>
@@ -200,6 +299,8 @@ $("saveAdminKey").addEventListener("click", async () => {
 });
 
 $("refreshTaskSubmissions")?.addEventListener("click", loadTaskSubmissions);
+$("refreshAdminTasks")?.addEventListener("click", loadAdminTasks);
+$("createAdminTaskBtn")?.addEventListener("click", createAdminTask);
 
 $("refreshAdmin").addEventListener("click", async () => {
   try {

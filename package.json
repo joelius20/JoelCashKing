@@ -1,7 +1,7 @@
 {
   "name": "joelcashking-v2",
-  "version": "0.25.0",
-  "description": "JoelCashKing V25: admin crea trabajos y usuarios suben pruebas PDF/PNG/JPG.",
+  "version": "0.25.1",
+  "description": "JoelCashKing V25.1: fix DATA_DIR antes de TASK_UPLOAD_DIR.",
   "main": "server.js",
   "scripts": {
     "dev": "node server.js",

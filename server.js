@@ -53,7 +53,6 @@ const BITLABS_BASE_URL = process.env.BITLABS_BASE_URL || "https://web.bitlabs.ai
 const BITLABS_DEFAULT_REWARD_COINS = Number(process.env.BITLABS_DEFAULT_REWARD_COINS || 0);
 const BITLABS_MAX_REWARD_COINS = Number(process.env.BITLABS_MAX_REWARD_COINS || 50000);
 
-const TASK_UPLOAD_DIR = path.join(DATA_DIR, "task-uploads");
 const TASK_UPLOAD_MAX_BYTES = Number(process.env.TASK_UPLOAD_MAX_BYTES || 5 * 1024 * 1024);
 const TASK_UPLOAD_ALLOWED_MIMES = ["application/pdf", "image/png", "image/jpeg"];
 
@@ -343,6 +342,7 @@ function isBitLabsRewardableType(type) {
 }
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "data");
+const TASK_UPLOAD_DIR = path.join(DATA_DIR, "task-uploads");
 const DB_FILE = process.env.DB_FILE || path.join(DATA_DIR, "db.json");
 
 if (!fs.existsSync(DATA_DIR)) {

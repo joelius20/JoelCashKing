@@ -379,3 +379,13 @@ Pruebas con archivo:
 - Máximo por defecto: 5 MB
 
 Los archivos se guardan en `/data/task-uploads`, por eso es importante tener Railway Volume montado en `/data`.
+
+
+## Fix V25.1
+
+Railway fallaba porque `TASK_UPLOAD_DIR` usaba `DATA_DIR` antes de que `DATA_DIR` estuviera definido.
+
+Solución:
+- Mover `const TASK_UPLOAD_DIR = path.join(DATA_DIR, "task-uploads");`
+- Colocarlo justo después de `const DATA_DIR = ...`
+- Crear la carpeta `TASK_UPLOAD_DIR` después de `fs.mkdirSync(DATA_DIR, ...)`
