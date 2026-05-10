@@ -1,7 +1,7 @@
 {
   "name": "joelcashking-v2",
-  "version": "0.24.1",
-  "description": "JoelCashKing V24.1: corrección admin de trabajos online.",
+  "version": "0.25.0",
+  "description": "JoelCashKing V25: admin crea trabajos y usuarios suben pruebas PDF/PNG/JPG.",
   "main": "server.js",
   "scripts": {
     "dev": "node server.js",

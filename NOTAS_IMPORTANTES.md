@@ -366,3 +366,16 @@ Railway fallaba al iniciar porque las rutas nuevas de trabajos usaban `authAdmin
 Solución:
 - `authAdmin` -> `adminOnly`
 - Las rutas cargan DB con `loadDb()`.
+
+
+## V25 Trabajos creados desde admin + archivos
+
+Los trabajos ya no dependen solo del código. Se guardan en `db.onlineTasks`.
+
+Pruebas con archivo:
+- PDF
+- PNG
+- JPG/JPEG
+- Máximo por defecto: 5 MB
+
+Los archivos se guardan en `/data/task-uploads`, por eso es importante tener Railway Volume montado en `/data`.

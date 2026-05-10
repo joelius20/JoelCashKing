@@ -53,6 +53,10 @@ const BITLABS_BASE_URL = process.env.BITLABS_BASE_URL || "https://web.bitlabs.ai
 const BITLABS_DEFAULT_REWARD_COINS = Number(process.env.BITLABS_DEFAULT_REWARD_COINS || 0);
 const BITLABS_MAX_REWARD_COINS = Number(process.env.BITLABS_MAX_REWARD_COINS || 50000);
 
+const TASK_UPLOAD_DIR = path.join(DATA_DIR, "task-uploads");
+const TASK_UPLOAD_MAX_BYTES = Number(process.env.TASK_UPLOAD_MAX_BYTES || 5 * 1024 * 1024);
+const TASK_UPLOAD_ALLOWED_MIMES = ["application/pdf", "image/png", "image/jpeg"];
+
 function sanitizeDirectAdId(value) {
   return String(value || "")
     .trim()
@@ -111,8 +115,7 @@ function getDirectAdLink(linkId) {
   return links.find(link => link.id === cleanId) || null;
 }
 
-function getOnlineTasks() {
-  // Puedes editar estas tareas desde código o más adelante convertirlo en panel admin editable.
+function defaultOnlineTasks() {
   return [
     {
       id: "visit-web",
@@ -121,7 +124,9 @@ function getOnlineTasks() {
       instructions: "Abre el enlace de la tarea, revisa la página y escribe una prueba con lo que has visto.",
       rewardCoins: Number(process.env.TASK_VISIT_WEB_REWARD || 25),
       estimatedTime: "3-5 min",
-      category: "Revisión web"
+      category: "Revisión web",
+      proofFileRequired: false,
+      isActive: true
     },
     {
       id: "survey-profile",
@@ -130,7 +135,9 @@ function getOnlineTasks() {
       instructions: "Completa el perfil y envía una captura o explicación de la acción realizada.",
       rewardCoins: Number(process.env.TASK_SURVEY_PROFILE_REWARD || 40),
       estimatedTime: "5-8 min",
-      category: "Encuestas"
+      category: "Encuestas",
+      proofFileRequired: false,
+      isActive: true
     },
     {
       id: "social-feedback",
@@ -139,7 +146,9 @@ function getOnlineTasks() {
       instructions: "Usa la app durante unos minutos y escribe un feedback claro y útil.",
       rewardCoins: Number(process.env.TASK_FEEDBACK_REWARD || 30),
       estimatedTime: "4-6 min",
-      category: "Feedback"
+      category: "Feedback",
+      proofFileRequired: false,
+      isActive: true
     },
     {
       id: "daily-check",
@@ -148,13 +157,49 @@ function getOnlineTasks() {
       instructions: "Entra en las secciones de recompensas y confirma qué has revisado.",
       rewardCoins: Number(process.env.TASK_DAILY_CHECK_REWARD || 10),
       estimatedTime: "2 min",
-      category: "Diaria"
+      category: "Diaria",
+      proofFileRequired: false,
+      isActive: true
     }
   ];
 }
 
-function getOnlineTask(taskId) {
-  return getOnlineTasks().find(task => task.id === String(taskId || "")) || null;
+function ensureOnlineTasks(db) {
+  db.onlineTasks = db.onlineTasks || [];
+
+  if (!db.onlineTasks.length) {
+    db.onlineTasks = defaultOnlineTasks().map(task => ({
+      ...task,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }));
+    saveDb(db);
+  }
+
+  return db.onlineTasks;
+}
+
+function getOnlineTasks(db, includeInactive = false) {
+  const tasks = ensureOnlineTasks(db);
+  return tasks
+    .filter(task => includeInactive || task.isActive !== false)
+    .map(task => ({
+      id: task.id,
+      title: task.title,
+      description: task.description,
+      instructions: task.instructions,
+      rewardCoins: Number(task.rewardCoins || 0),
+      estimatedTime: task.estimatedTime || "",
+      category: task.category || "General",
+      proofFileRequired: Boolean(task.proofFileRequired || false),
+      isActive: task.isActive !== false,
+      createdAt: task.createdAt,
+      updatedAt: task.updatedAt
+    }));
+}
+
+function getOnlineTask(db, taskId) {
+  return getOnlineTasks(db, true).find(task => task.id === String(taskId || "")) || null;
 }
 
 function publicTaskSubmission(submission) {
@@ -166,10 +211,69 @@ function publicTaskSubmission(submission) {
     rewardCoins: submission.rewardCoins,
     proofText: submission.proofText,
     proofUrl: submission.proofUrl,
+    proofFile: submission.proofFile || null,
     status: submission.status,
     adminNote: submission.adminNote || "",
     createdAt: submission.createdAt,
     updatedAt: submission.updatedAt
+  };
+}
+
+function sanitizeTaskId(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 48);
+}
+
+function sanitizeUploadFileName(name) {
+  return String(name || "archivo")
+    .replace(/[^\w.\- ]+/g, "")
+    .trim()
+    .slice(0, 120) || "archivo";
+}
+
+function parseProofFile(file) {
+  if (!file || typeof file !== "object") return null;
+
+  const name = sanitizeUploadFileName(file.name || "prueba");
+  const mimeType = String(file.mimeType || file.type || "").trim();
+  const data = String(file.data || "");
+
+  if (!TASK_UPLOAD_ALLOWED_MIMES.includes(mimeType)) {
+    throw new Error("Archivo no permitido. Solo PDF, PNG, JPG o JPEG.");
+  }
+
+  const base64 = data.includes(",") ? data.split(",").pop() : data;
+  const buffer = Buffer.from(base64, "base64");
+
+  if (!buffer.length) {
+    throw new Error("El archivo está vacío o no se pudo leer.");
+  }
+
+  if (buffer.length > TASK_UPLOAD_MAX_BYTES) {
+    throw new Error(`El archivo supera el máximo permitido de ${Math.round(TASK_UPLOAD_MAX_BYTES / 1024 / 1024)} MB.`);
+  }
+
+  let extension = ".bin";
+  if (mimeType === "application/pdf") extension = ".pdf";
+  if (mimeType === "image/png") extension = ".png";
+  if (mimeType === "image/jpeg") extension = ".jpg";
+
+  const storedName = `${Date.now()}-${crypto.randomUUID()}${extension}`;
+  const storedPath = path.join(TASK_UPLOAD_DIR, storedName);
+
+  fs.writeFileSync(storedPath, buffer);
+
+  return {
+    originalName: name,
+    storedName,
+    mimeType,
+    sizeBytes: buffer.length,
+    url: `/api/tasks/proof-file/${storedName}`
   };
 }
 
@@ -243,6 +347,7 @@ const DB_FILE = process.env.DB_FILE || path.join(DATA_DIR, "db.json");
 
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
+fs.mkdirSync(TASK_UPLOAD_DIR, { recursive: true });
 }
 
 app.disable("x-powered-by");
@@ -324,6 +429,7 @@ function initialDb() {
     bitlabsCallbacks: {},
     bitlabsTransactions: {},
     taskSubmissions: [],
+    onlineTasks: [],
     settings: {
       minWithdrawalCoins: 1000,
       coinRate: 1000,
@@ -377,6 +483,7 @@ function loadDb() {
   db.bitlabsCallbacks = db.bitlabsCallbacks || {};
   db.bitlabsTransactions = db.bitlabsTransactions || {};
   db.taskSubmissions = db.taskSubmissions || [];
+  db.onlineTasks = db.onlineTasks || [];
   db.settings = db.settings || initialDb().settings;
   return db;
 }
@@ -844,6 +951,7 @@ app.get("/api/ayet/s2s-callback", (req, res) => {
   db.bitlabsCallbacks = db.bitlabsCallbacks || {};
   db.bitlabsTransactions = db.bitlabsTransactions || {};
   db.taskSubmissions = db.taskSubmissions || [];
+  db.onlineTasks = db.onlineTasks || [];
 
   const transactionId = getQueryValue(req.query, "transaction_id");
   const externalIdentifier = getQueryValue(req.query, "external_identifier");
@@ -1384,13 +1492,13 @@ app.get("/api/tasks", authUser, (req, res) => {
     .map(publicTaskSubmission);
 
   res.json({
-    tasks: getOnlineTasks(),
+    tasks: getOnlineTasks(req.db),
     submissions
   });
 });
 
 app.post("/api/tasks/submit", authUser, (req, res) => {
-  const task = getOnlineTask(req.body.taskId);
+  const task = getOnlineTask(req.db, req.body.taskId);
 
   if (!task) {
     return res.status(400).json({ error: "Tarea no válida." });
@@ -1399,8 +1507,20 @@ app.post("/api/tasks/submit", authUser, (req, res) => {
   const proofText = String(req.body.proofText || "").trim().slice(0, 1000);
   const proofUrl = String(req.body.proofUrl || "").trim().slice(0, 300);
 
-  if (proofText.length < 10 && proofUrl.length < 8) {
-    return res.status(400).json({ error: "Añade una prueba o explicación de la tarea realizada." });
+  let proofFile = null;
+
+  try {
+    proofFile = parseProofFile(req.body.proofFile);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  if (task.proofFileRequired && !proofFile) {
+    return res.status(400).json({ error: "Esta tarea requiere subir un archivo de prueba." });
+  }
+
+  if (proofText.length < 10 && proofUrl.length < 8 && !proofFile) {
+    return res.status(400).json({ error: "Añade una prueba, explicación o archivo de la tarea realizada." });
   }
 
   const recentDuplicate = (req.db.taskSubmissions || []).find(item =>
@@ -1423,6 +1543,7 @@ app.post("/api/tasks/submit", authUser, (req, res) => {
     rewardCoins: task.rewardCoins,
     proofText,
     proofUrl,
+    proofFile,
     status: "pending_review",
     adminNote: "",
     credited: false,
@@ -1478,6 +1599,7 @@ app.get("/api/bitlabs/callback", (req, res) => {
   db.bitlabsCallbacks = db.bitlabsCallbacks || {};
   db.bitlabsTransactions = db.bitlabsTransactions || {};
   db.taskSubmissions = db.taskSubmissions || [];
+  db.onlineTasks = db.onlineTasks || [];
 
   const parsed = parseBitLabsReward(req);
   const logId = parsed.tx || crypto.randomUUID();
@@ -1797,6 +1919,108 @@ app.post("/api/puzzle/complete", authUser, (req, res) => {
   });
 });
 
+app.get("/api/admin/tasks", adminOnly, (req, res) => {
+  const db = loadDb();
+  res.json({ tasks: getOnlineTasks(db, true) });
+});
+
+app.post("/api/admin/tasks", adminOnly, (req, res) => {
+  const db = loadDb();
+  const tasks = ensureOnlineTasks(db);
+
+  const title = String(req.body.title || "").trim().slice(0, 120);
+  const description = String(req.body.description || "").trim().slice(0, 500);
+  const instructions = String(req.body.instructions || "").trim().slice(0, 1000);
+  const rewardCoins = Math.max(0, Math.floor(Number(req.body.rewardCoins || 0)));
+  const estimatedTime = String(req.body.estimatedTime || "").trim().slice(0, 80);
+  const category = String(req.body.category || "General").trim().slice(0, 80);
+  const proofFileRequired = Boolean(req.body.proofFileRequired || false);
+  const isActive = req.body.isActive === undefined ? true : Boolean(req.body.isActive);
+
+  if (title.length < 3) {
+    return res.status(400).json({ error: "El título debe tener al menos 3 caracteres." });
+  }
+
+  if (rewardCoins <= 0) {
+    return res.status(400).json({ error: "La recompensa debe ser mayor que 0 coins." });
+  }
+
+  let id = sanitizeTaskId(req.body.id || title);
+  if (!id) id = `task-${Date.now()}`;
+
+  if (tasks.some(task => task.id === id)) {
+    id = `${id}-${Date.now()}`;
+  }
+
+  const task = {
+    id,
+    title,
+    description,
+    instructions,
+    rewardCoins,
+    estimatedTime,
+    category,
+    proofFileRequired,
+    isActive,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+
+  db.onlineTasks.push(task);
+  saveDb(db);
+
+  res.json({ ok: true, task });
+});
+
+app.post("/api/admin/tasks/:id", adminOnly, (req, res) => {
+  const db = loadDb();
+  const tasks = ensureOnlineTasks(db);
+  const task = tasks.find(item => item.id === req.params.id);
+
+  if (!task) {
+    return res.status(404).json({ error: "Trabajo no encontrado." });
+  }
+
+  const fields = ["title", "description", "instructions", "estimatedTime", "category"];
+  for (const field of fields) {
+    if (req.body[field] !== undefined) {
+      task[field] = String(req.body[field] || "").trim().slice(0, field === "instructions" ? 1000 : 500);
+    }
+  }
+
+  if (req.body.rewardCoins !== undefined) {
+    task.rewardCoins = Math.max(0, Math.floor(Number(req.body.rewardCoins || 0)));
+  }
+
+  if (req.body.proofFileRequired !== undefined) {
+    task.proofFileRequired = Boolean(req.body.proofFileRequired);
+  }
+
+  if (req.body.isActive !== undefined) {
+    task.isActive = Boolean(req.body.isActive);
+  }
+
+  task.updatedAt = new Date().toISOString();
+  saveDb(db);
+
+  res.json({ ok: true, task });
+});
+
+app.delete("/api/admin/tasks/:id", adminOnly, (req, res) => {
+  const db = loadDb();
+  db.onlineTasks = db.onlineTasks || [];
+
+  const before = db.onlineTasks.length;
+  db.onlineTasks = db.onlineTasks.filter(item => item.id !== req.params.id);
+
+  if (db.onlineTasks.length === before) {
+    return res.status(404).json({ error: "Trabajo no encontrado." });
+  }
+
+  saveDb(db);
+  res.json({ ok: true });
+});
+
 app.get("/api/admin/task-submissions", adminOnly, (req, res) => {
   const db = loadDb();
 
@@ -1810,6 +2034,7 @@ app.get("/api/admin/task-submissions", adminOnly, (req, res) => {
 app.post("/api/admin/task-submissions/:id/status", adminOnly, (req, res) => {
   const db = loadDb();
   db.taskSubmissions = db.taskSubmissions || [];
+  db.onlineTasks = db.onlineTasks || [];
 
   const submission = db.taskSubmissions.find(item => item.id === req.params.id);
 

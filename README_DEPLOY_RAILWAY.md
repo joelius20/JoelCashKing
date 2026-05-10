@@ -191,3 +191,12 @@ TASK_SURVEY_PROFILE_REWARD=40
 TASK_FEEDBACK_REWARD=30
 TASK_DAILY_CHECK_REWARD=10
 ```
+
+
+## Variable para subida de archivos de trabajos
+
+```env
+TASK_UPLOAD_MAX_BYTES=5242880
+```
+
+Asegúrate de tener Railway Volume montado en `/data`, porque los archivos se guardan en `/data/task-uploads`.
